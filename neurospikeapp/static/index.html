@@ -528,6 +528,8 @@
         };
       });
       const total = hourly.reduce((sum, row) => sum + row.irradiance, 0);
+      const dailyTotalKwh = Math.round(total / 10) / 100;
+      const expectedDailyKwh = city.peak_sun_hours || 5.5;
       const daylight = hourly.filter(h => h.hour >= 6 && h.hour <= 18);
       let best = { start:10, avg:-1 };
       for (let i = 0; i < daylight.length - 2; i++) {
@@ -536,9 +538,9 @@
       }
       return {
         city:city.name, date,
-        solar_quality_score:Math.max(0, Math.min(100, Math.round((total / 14000) * 100))),
+        solar_quality_score:Math.max(0, Math.min(100, Math.round((dailyTotalKwh / expectedDailyKwh) * 100))),
         peak_window:{ start:best.start, end:best.start + 3 },
-        daily_total_kwh:Math.round(total / 10) / 100,
+        daily_total_kwh:dailyTotalKwh,
         model_used:"Local Preview",
         model_rmse:45.5,
         model_r2:0.962,

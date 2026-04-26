@@ -16,7 +16,7 @@ NeuroSpike predicts solar GHI (Global Horizontal Irradiance), estimates photovol
 ## Project Structure
 
 ```text
-NeuroSpike/
+neuromorphic-solar-forecast/
   backend/            FastAPI model inference API
   frontend/           Streamlit analytics dashboard
   neurospikeapp/      Standalone FastAPI + static web dashboard
@@ -28,6 +28,10 @@ NeuroSpike/
   config.py           Global cities, paths, model settings, and solar constants
   requirements.txt    Python dependencies
 ```
+
+The deployable Render app is intentionally isolated in `neurospikeapp/`. The
+training notebooks, reusable source modules, datasets, plots, and evaluation
+outputs remain in the main repository for review and reproducibility.
 
 ## Supported Cities
 
@@ -123,6 +127,23 @@ Standalone app endpoints:
 - `POST /api/savings`
 - `GET /api/compare`
 
+## Render Deployment
+
+Use these settings for the hosted demo:
+
+```text
+Service type: Web Service
+Runtime: Python 3
+Root Directory: neurospikeapp
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+Plan: Free
+```
+
+`.python-version` and `neurospikeapp/.python-version` pin Render to Python
+3.11.11 so FastAPI and Pydantic install from stable wheels instead of trying
+to build incompatible packages on newer Python versions.
+
 ## Notebook Workflow
 
 The notebooks are organized as a full pipeline:
@@ -156,5 +177,6 @@ Model artifacts are stored under:
 ## Notes
 
 - The backend and Streamlit dashboard use relative paths, so run each app from its own directory.
-- Some source files may contain older encoding artifacts in display strings. The core Python syntax is valid, but cleaning those strings will improve UI text.
+- Large trained model artifacts are intentionally ignored by Git through `.gitignore` (`*.keras`, `*.pt`, `*.pth`, `models/saved/`, and `models/checkpoints/`) to keep the repository deployable.
+- The hosted `neurospikeapp/` dashboard is a lightweight project demo. The full trained-model API in `backend/` can be run locally when the checkpoint files are available.
 - If Python reports an access error while writing `__pycache__` files on OneDrive, close running Python processes or delete the stale cache file after OneDrive finishes syncing.

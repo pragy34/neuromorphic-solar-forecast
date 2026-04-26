@@ -115,8 +115,9 @@ def generate_forecast(city_id: str, on_date: date) -> dict:
         )
 
     sum_irradiance = sum(item["irradiance"] for item in hourly)
-    solar_quality_score = max(0, min(100, round((sum_irradiance / (14 * 1000)) * 100)))
     daily_total_kwh = round(sum_irradiance / 1000, 2)
+    expected_daily_kwh = CITY_PEAK_SUN[city_id]
+    solar_quality_score = max(0, min(100, round((daily_total_kwh / expected_daily_kwh) * 100)))
 
     daylight = [item for item in hourly if 6 <= item["hour"] <= 18]
     best_window_start = 10
