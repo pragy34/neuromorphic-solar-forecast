@@ -207,16 +207,18 @@ def get_compare() -> dict:
 
     for city in CITIES:
         city_id = city["id"]
-        score_sum = 0.0
+        irradiance_sum = 0.0
+        quality_sum = 0.0
         for day_offset in range(7):
             d = week_start + timedelta(days=day_offset)
             forecast = generate_forecast(city_id, d)
             daylight = [h for h in forecast["hourly"] if 6 <= h["hour"] <= 18]
             day_avg = sum(x["irradiance"] for x in daylight) / len(daylight)
-            score_sum += day_avg
+            irradiance_sum += day_avg
+            quality_sum += forecast["solar_quality_score"]
 
-        avg_irradiance = score_sum / 7
-        score = round((avg_irradiance / 1000) * 100)
+        avg_irradiance = irradiance_sum / 7
+        score = round(quality_sum / 7)
         ranking.append(
             {
                 "id": city_id,

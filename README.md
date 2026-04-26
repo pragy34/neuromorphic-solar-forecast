@@ -4,6 +4,12 @@ Global solar irradiance forecasting with machine learning, deep learning, and sp
 
 NeuroSpike predicts solar GHI (Global Horizontal Irradiance), estimates photovoltaic power output, compares model performance, and exposes the results through API and dashboard interfaces.
 
+## Live Demo
+
+Deployed web dashboard:
+
+https://neuromorphic-solar-forecast.onrender.com
+
 ## What Is Included
 
 - Data pipeline notebooks for collection, preprocessing, feature engineering, training, evaluation, and forecasting.

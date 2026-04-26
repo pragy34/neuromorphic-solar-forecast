@@ -238,9 +238,9 @@
           <div id="atlasMap"></div>
           <div class="map-legend glass">
             <strong style="font-size:12px;">Solar intensity</strong>
-            <div class="legend-row"><span class="legend-dot" style="background:#3b82f6;"></span><span>Low</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#ef4444;"></span><span>Low</span></div>
             <div class="legend-row"><span class="legend-dot" style="background:#facc15;"></span><span>Medium</span></div>
-            <div class="legend-row"><span class="legend-dot" style="background:#ef4444;"></span><span>High</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#10b981;"></span><span>High</span></div>
           </div>
           <div class="atlas-float glass">
             <h4 id="atlasPanelTitle">Site irradiance (atlas view)</h4>
@@ -573,7 +573,9 @@
         const forecast = fallbackForecast(city.id, today);
         const daylight = forecast.hourly.filter(h => h.hour >= 6 && h.hour <= 18);
         const avg = daylight.reduce((sum, h) => sum + h.irradiance, 0) / daylight.length;
-        return { id:city.id, name:city.name, flag:city.flag, avg_irradiance:Math.round(avg), score:Math.max(0, Math.min(100, Math.round(avg / 10))) };
+        const expectedAvg = (city.peak_sun_hours * 1000) / 13;
+        const score = Math.max(0, Math.min(100, Math.round((avg / expectedAvg) * 100)));
+        return { id:city.id, name:city.name, flag:city.flag, avg_irradiance:Math.round(avg), score };
       }).sort((a, b) => b.avg_irradiance - a.avg_irradiance).map((row, i) => ({ ...row, rank:i + 1 }));
     }
 
@@ -665,10 +667,10 @@
       } catch { compareRows = fallbackCompareRows(); }
     }
 
-    function intensityBucket(rankRatio) {
-      if (rankRatio >= 0.68) return { label:"High", color:"#ef4444" };
-      if (rankRatio >= 0.34) return { label:"Medium", color:"#facc15" };
-      return { label:"Low", color:"#3b82f6" };
+    function intensityBucket(score) {
+      if (score >= 75) return { label:"High", color:"#10b981" };
+      if (score >= 45) return { label:"Medium", color:"#facc15" };
+      return { label:"Low", color:"#ef4444" };
     }
 
     function initAtlasMap() {
@@ -684,14 +686,12 @@
       if (heatLayer) { atlasMap.removeLayer(heatLayer); heatLayer = null; }
       const heatPoints = [];
       const maxI = Math.max(1, ...compareRows.map(r => r.avg_irradiance || 0));
-      const ranked = [...compareRows].sort((a, b) => (a.avg_irradiance || 0) - (b.avg_irradiance || 0));
-      const rankMap = new Map(ranked.map((row, index) => [row.id, ranked.length <= 1 ? 1 : index / (ranked.length - 1)]));
       compareRows.forEach(row => {
         const coords = MAP_COORDS[row.id];
         if (!coords) return;
         const t = (row.avg_irradiance || 0) / maxI;
         heatPoints.push([coords[0], coords[1], Math.max(0.2, t * 1.2)]);
-        const bucket = intensityBucket(rankMap.get(row.id) || 0);
+        const bucket = intensityBucket(row.score || 0);
         const c = bucket.color;
         const m = L.circleMarker(coords, { radius: 8 + t * 10, color: c, fillColor: c, fillOpacity: 0.55, weight: 2 })
           .bindTooltip(`<strong>${row.name}</strong><br/>Avg: ${row.avg_irradiance} W/m²<br/>Score: ${row.score}`, { direction: "top", sticky: true });
