@@ -1,0 +1,9 @@
+Model,Mean RMSE,Std RMSE,Mean MAE,Mean R²,Mean Skill,Best City,Worst City
+Persistence,91.373,15.456,58.714,0.8944,,london,riyadh
+Climatology,69.746,20.782,34.139,0.9229,,dubai,tokyo
+LinearRegression,54.403,18.549,31.261,0.9525,,dubai,sydney
+Ridge,54.315,18.563,31.056,0.9526,,dubai,sydney
+RandomForest,45.96,14.196,20.291,0.9663,,riyadh,sydney
+XGBoost,47.281,15.265,21.091,0.9642,,riyadh,sydney
+BiLSTM,45.52,8.431,25.411,0.971,48.7,dubai,sydney
+NeuroSpike,29.667,3.764,17.686,0.9877,66.43,riyadh,new_delhi

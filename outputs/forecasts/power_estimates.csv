@@ -1,0 +1,11 @@
+city,max_power_W,mean_daily_kWh,annual_kWh_est
+riyadh,347.1,1.938,707.4
+cairo,335.1,1.834,669.6
+istanbul,314.0,1.294,472.4
+new_delhi,328.1,1.507,550.0
+dubai,330.8,1.771,646.3
+london,296.0,0.968,353.2
+sydney,357.3,1.485,542.0
+tokyo,325.3,1.29,470.9
+los_angeles,340.3,1.797,656.0
+nairobi,357.5,1.84,671.4

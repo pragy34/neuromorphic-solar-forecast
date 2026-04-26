@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroSpike — Solar Intelligence</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='50' font-size='48'%3E%E2%98%80%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <style>
+    :root {
+      --bg:#0A0F1E; --card:#111827; --elev:#1F2937; --amber:#F59E0B; --green:#10B981; --red:#EF4444; --blue:#3B82F6;
+      --text:#F9FAFB; --muted:#9CA3AF; --border:rgba(255,255,255,.08);
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; color:var(--text); font-family:"Inter",sans-serif;
+      min-height:100vh;
+      background-color:#070b14;
+      background-image:
+        radial-gradient(820px 520px at 82% 12%, rgba(255,184,61,.30), transparent 60%),
+        radial-gradient(900px 540px at 7% 92%, rgba(58,137,255,.22), transparent 60%),
+        linear-gradient(180deg, rgba(7,11,20,.62) 0%, rgba(7,11,20,.46) 34%, rgba(7,11,20,.70) 100%),
+        radial-gradient(120% 92% at 50% 36%, rgba(255,255,255,.08), rgba(0,0,0,.58) 76%),
+        url("/static/solar-hero-bg.png");
+      background-repeat:no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+      background-size:auto, auto, auto, auto, cover;
+      background-position:0 0, 0 0, 0 0, center, center 42%;
+      background-attachment:fixed, fixed, fixed, fixed, fixed;
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+      opacity:.055;
+      background-image:
+        repeating-radial-gradient(circle at 20% 30%, rgba(255,255,255,.75) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.16) 0 1px, transparent 1px 7px);
+      mix-blend-mode:overlay;
+    }
+    .sun-glow { position:fixed; top:72px; right:6%; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle, rgba(245,158,11,.32), rgba(245,158,11,0) 72%); filter:blur(14px); animation:pulse 4.2s ease-in-out infinite; pointer-events:none; z-index:0; opacity:.85; mix-blend-mode:screen; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .glass {
+      background:linear-gradient(145deg, rgba(17,24,39,.68), rgba(17,24,39,.44));
+      backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 18px 54px rgba(0,0,0,.34);
+    }
+    .card {
+      position:relative; border-radius:16px; padding:18px;
+      border:1px solid var(--border);
+      background:linear-gradient(165deg, rgba(15,23,42,.92), rgba(17,24,39,.82));
+      box-shadow:0 16px 52px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.07);
+      transition:transform .24s ease, box-shadow .24s ease, border-color .24s ease, background .24s ease;
+    }
+    .card::before {
+      content:""; position:absolute; inset:-1px; border-radius:16px; padding:1px;
+      background:linear-gradient(135deg, rgba(245,158,11,.45), rgba(59,130,246,.12), rgba(245,158,11,.08));
+      -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
+    }
+    .hover-pop { transition:transform .22s ease, box-shadow .22s ease; }
+    .hover-pop:hover { transform:translateY(-3px); box-shadow:0 16px 36px rgba(245,158,11,.12); }
+    .navbar {
+      position:fixed; top:0; left:0; right:0; z-index:1100; display:flex; align-items:center; justify-content:space-between;
+      padding:12px 18px; background:rgba(10,15,30,.78); border-bottom:1px solid var(--border); backdrop-filter:blur(12px);
+    }
+    .brand { font-weight:800; color:var(--amber); letter-spacing:.02em; }
+    .nav-links { display:flex; gap:16px; }
+    .nav-link { border:none; background:none; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; padding:8px 2px; font-weight:600; transition:color .2s,border-color .2s; }
+    .nav-link.active { color:var(--amber); border-bottom-color:var(--amber); }
+    .nav-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; justify-content:flex-end; }
+    .mode-toggle, .use-toggle { display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+    .mode-toggle button, .use-toggle button {
+      border:none; background:transparent; color:var(--muted); padding:8px 11px; cursor:pointer; font-weight:700; font-size:12px;
+    }
+    .mode-toggle button.active, .use-toggle button.active { background:var(--amber); color:#111; }
+    .profile-badge { border:1px solid rgba(245,158,11,.45); color:var(--amber); border-radius:999px; background:rgba(245,158,11,.1); padding:8px 11px; font-size:11px; cursor:pointer; }
+    main { position:relative; z-index:1; max-width:1440px; margin:0 auto; padding:84px 14px 32px; }
+    .section { display:none; } .section.active { display:block; }
+    .error-card { display:none; color:#fca5a5; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.1); border-radius:12px; padding:12px 14px; margin-bottom:12px; }
+    .btn { border:none; border-radius:10px; cursor:pointer; padding:10px 16px; font-weight:700; transition:transform .15s, box-shadow .2s; }
+    .btn:active { transform:scale(.98); }
+    .btn-amber { background:linear-gradient(180deg,#fbbf24,#F59E0B); color:#111; box-shadow:0 4px 18px rgba(245,158,11,.35); }
+    .btn-ghost { background:rgba(31,41,55,.5); border:1px solid var(--border); color:var(--muted); }
+    .insight-card { margin-bottom:12px; border-left:4px solid var(--amber); background:linear-gradient(110deg, rgba(245,158,11,.2), rgba(15,23,42,.78)); }
+    .insight-badge { font-size:11px; font-weight:800; letter-spacing:.08em; border-radius:999px; padding:7px 12px; text-shadow:0 0 16px currentColor; box-shadow:0 0 20px rgba(245,158,11,.15); }
+    .layout-atlas { display:grid; grid-template-columns: 40% 1fr; gap:12px; align-items:start; }
+    .map-wrap { position:relative; border-radius:16px; overflow:hidden; min-height:460px; border:1px solid var(--border); }
+    #atlasMap { height:460px; width:100%; background:#0c1222; filter:saturate(1.05) contrast(1.02); }
+    .leaflet-container { font-family:inherit; background:#0c1222; }
+    .atlas-float {
+      position:absolute; left:12px; bottom:12px; right:12px; z-index:500; max-width:calc(100% - 24px);
+      border-radius:14px; padding:12px 14px; pointer-events:auto;
+    }
+    .atlas-float h4 { margin:0 0 8px; font-size:13px; color:var(--amber); }
+    .atlas-metrics { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:12px; }
+    .atlas-metrics div { display:flex; justify-content:space-between; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(15,23,42,.55); border:1px solid var(--border); }
+    .atlas-metrics span:first-child { color:var(--muted); }
+    .map-legend { position:absolute; right:12px; top:12px; z-index:500; padding:10px 12px; border-radius:12px; min-width:160px; }
+    .legend-row { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:11px; margin-top:7px; }
+    .legend-dot { width:34px; height:8px; border-radius:999px; display:inline-block; }
+    .system-grid { display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:10px; margin-bottom:12px; }
+    .ai-banner { border-left:4px solid var(--amber); background:linear-gradient(105deg, rgba(245,158,11,.20), rgba(59,130,246,.10), rgba(15,23,42,.58)); }
+    .system-state { display:grid; grid-template-columns:1fr; gap:6px; }
+    .state-row { display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--muted); }
+    .live-dot { display:inline-block; width:8px; height:8px; margin-right:6px; border-radius:50%; background:var(--green); box-shadow:0 0 14px var(--green); }
+    .dash-lab-stack { display:grid; grid-template-columns: 1fr 320px; gap:10px; align-items:start; }
+    .controls { display:grid; grid-template-columns:1fr 1fr auto; gap:8px; margin-bottom:10px; }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
+    select,input[type="date"],input[type="number"],input[type="range"] {
+      width:100%; background:rgba(31,41,55,.85); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 12px;
+    }
+    .timeline-wrap { margin:10px 0 6px; padding:10px; border-radius:12px; background:rgba(31,41,55,.45); border:1px solid var(--border); }
+    .timeline-wrap label { margin:0 0 6px; }
+    .timeline-labels { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:4px; }
+    .skeleton-wrap{ display:none; gap:8px; } .sk{ height:86px; border-radius:12px; background:linear-gradient(90deg, rgba(31,41,55,.85), rgba(59,130,246,.14), rgba(31,41,55,.85)); background-size:200% 100%; animation:shimmer 1.15s linear infinite; }
+    .stats-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+    .stat-label{ color:var(--muted); font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
+    .stat-value{ font-size:52px; font-weight:800; line-height:1.02; }
+    .stat-sub{ color:var(--muted); font-size:12px; margin-top:6px; }
+    .badge{ border:1px solid var(--border); color:var(--muted); border-radius:999px; padding:4px 10px; font-size:11px; font-weight:800; }
+    .score-glow-good{ text-shadow:0 0 24px #10B98199; } .score-glow-mid{ text-shadow:0 0 24px #F59E0B99;} .score-glow-bad{ text-shadow:0 0 24px #EF444499;}
+    .bottom-cards { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; } .bottom-cards .card{ flex:1; min-width:200px; }
+    .chart-side-grid { display:grid; grid-template-columns:minmax(0,1fr) 260px; gap:10px; align-items:stretch; }
+    .model-card { border-color:rgba(245,158,11,.48); box-shadow:0 18px 52px rgba(245,158,11,.11), inset 0 1px 0 rgba(255,255,255,.10); background:linear-gradient(160deg, rgba(245,158,11,.14), rgba(15,23,42,.78)); }
+    .model-kpi { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); }
+    .model-kpi:last-child { border-bottom:none; }
+    .info-dot { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%; margin-left:5px; font-size:11px; color:#fde68a; border:1px solid rgba(245,158,11,.55); cursor:help; }
+    .final-rec { flex-basis:100%; border-color:rgba(245,158,11,.62); background:linear-gradient(145deg, rgba(245,158,11,.18), rgba(16,185,129,.10), rgba(15,23,42,.78)); box-shadow:0 18px 60px rgba(245,158,11,.15), inset 0 1px 0 rgba(255,255,255,.10); }
+    .final-rec h2 { margin:0 0 8px; letter-spacing:.02em; }
+    .decision-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:12px; }
+    .decision-cell { padding:10px; border:1px solid var(--border); border-radius:12px; background:rgba(15,23,42,.44); }
+    .decision-cell strong { display:block; margin-top:4px; color:var(--text); }
+    .rec-row{ display:grid; grid-template-columns:22px 108px 1fr; gap:8px; margin:10px 0; align-items:start; }
+    .rec-time{ color:var(--amber); font-weight:800; }
+    .rec-note,.muted{ color:var(--muted); font-size:12px; }
+    .progress-group{ margin-bottom:10px; } .progress-head{ display:flex; justify-content:space-between; margin-bottom:5px; color:var(--muted); font-size:12px;}
+    .progress-bg{ height:8px; background:#1F2937; border-radius:6px; overflow:hidden; }
+    .progress-fill{ height:100%; width:0; background:linear-gradient(90deg,#F59E0B,#fbbf24); border-radius:6px; transition:width .75s ease; }
+    .advanced-only{ display:none; }
+    .adv-kpis{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+    .adv-kpi{ background:rgba(31,41,55,.55); border:1px solid var(--border); border-radius:10px; padding:10px; }
+    .insight-lab{ position:sticky; top:78px; max-height:calc(100vh - 90px); overflow:auto; }
+    .insight-toggle { margin-bottom:6px; width:100%; }
+    .chip-toggle{ display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+    .chip-toggle button{ border:none;background:transparent;color:var(--muted);padding:7px 12px;cursor:pointer;font-size:12px;font-weight:700;}
+    .chip-toggle button.active{ background:var(--amber); color:#111; }
+    .small-chart{ margin-top:6px; }
+    .risk-item{ margin:6px 0; padding:9px; border-radius:10px; background:rgba(31,41,55,.5); border:1px solid var(--border);}
+    .factor{ display:flex; justify-content:space-between; margin:5px 0; font-size:12px; }
+    .factor-up{ color:#93c5fd; } .factor-down{ color:#86efac; }
+    .metrics-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+    .metrics-table th, .metrics-table td { padding:8px 6px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    .metrics-table th { color:var(--muted); font-weight:600; }
+    .metric-tip { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:rgba(59,130,246,.2); color:#93c5fd; font-size:10px; cursor:help; margin-left:4px; }
+    details.lab-details { margin-top:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(15,23,42,.35); }
+    details.lab-details summary { cursor:pointer; font-weight:700; color:var(--amber); font-size:12px; }
+    .industrial-metrics { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+    .ind-kpi { padding:10px; border-radius:10px; border:1px solid var(--border); background:rgba(31,41,55,.45); font-size:12px; }
+    .ind-kpi strong { display:block; font-size:15px; margin-top:4px; color:var(--text); }
+    .strategy-block { margin-top:10px; padding:12px; border-radius:12px; border:1px solid rgba(245,158,11,.25); background:rgba(245,158,11,.08); font-size:12px; line-height:1.55; }
+    .operational-impact { margin-top:12px; padding:12px; border-radius:12px; border:1px solid rgba(239,68,68,.28); background:linear-gradient(145deg, rgba(239,68,68,.10), rgba(15,23,42,.50)); }
+    .impact-title { font-weight:800; color:#fecaca; margin-bottom:8px; }
+    .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:10px; } .form-row{ margin-bottom:11px; }
+    .results-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+    .table{ width:100%; border-collapse:collapse; font-size:14px; }
+    .table th,.table td{ padding:10px 8px; border-bottom:1px solid var(--border); text-align:left; transition:background .2s; }
+    .table tr:hover{ background:rgba(245,158,11,.07); }
+    .rank-badge{ font-size:18px; }
+    .bar-track{ height:9px; background:#1F2937; border-radius:999px; overflow:hidden; }
+    .bar-fill{ height:100%; background:linear-gradient(90deg,#F59E0B,#ea580c); }
+    .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:2000; display:none; align-items:center; justify-content:center; padding:16px; }
+    .modal{ max-width:520px; width:100%; border-top:4px solid var(--amber); }
+    @keyframes pulse { 0%,100%{ transform:scale(.94); opacity:.72;} 50%{ transform:scale(1.06); opacity:1; } }
+    @keyframes shimmer { from{ background-position:200% 0;} to{ background-position:-200% 0;} }
+    @media (max-width:1180px){
+      .layout-atlas { grid-template-columns: 1fr; }
+      .map-wrap { min-height:380px; }
+      #atlasMap { height:380px; }
+      .dash-lab-stack { grid-template-columns: 1fr; }
+      .insight-lab { position:relative; top:0; max-height:none; }
+      .chart-side-grid, .system-grid { grid-template-columns:1fr; }
+      .decision-grid { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width:768px){
+      .nav-links{ display:none; }
+      .stats-row{ grid-template-columns:1fr 1fr; }
+      .controls{ grid-template-columns:1fr; }
+      .bottom-cards{ flex-direction:column; }
+      .navbar{ flex-wrap:wrap; gap:8px; }
+      main{ padding-top:112px; }
+      .atlas-metrics { grid-template-columns:1fr; }
+      .decision-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sun-glow"></div>
+  <nav class="navbar">
+    <div class="brand">⚡ NeuroSpike</div>
+    <div class="nav-links">
+      <button class="nav-link active" data-tab="dashboard">Dashboard</button>
+      <button class="nav-link" data-tab="savings">Savings</button>
+      <button class="nav-link" data-tab="compare">Compare</button>
+    </div>
+    <div class="nav-tools">
+      <div class="use-toggle">
+        <button id="homeUseBtn" class="active">🏠 Home</button>
+        <button id="indUseBtn">🏭 Industrial</button>
+      </div>
+      <div class="mode-toggle"><button id="simpleBtn" class="active">☀ Simple</button><button id="advancedBtn">⚙ Advanced</button></div>
+      <button id="profileBadge" class="profile-badge" style="display:none;"></button>
+    </div>
+  </nav>
+
+  <main>
+    <section id="dashboard" class="section active">
+      <div id="apiError" class="error-card">⚠️ Could not reach NeuroSpike API. Make sure the backend is running. <button id="retryBtn" class="btn btn-ghost">Retry</button></div>
+      <div class="system-grid">
+        <div id="aiMessage" class="card glass ai-banner hover-pop">
+          <div class="stat-label">AI system message</div>
+          <div id="aiMessageText" style="font-weight:800;margin-top:5px;">Solar intelligence engine is warming up.</div>
+          <div id="aiMessageSub" class="muted" style="margin-top:4px;">Run a forecast to receive optimization guidance.</div>
+        </div>
+        <div class="card glass system-state hover-pop">
+          <div class="state-row"><span><span class="live-dot"></span>System status</span><strong id="sysStatus">Active</strong></div>
+          <div class="state-row"><span>Last updated</span><strong id="lastUpdated">--</strong></div>
+          <div class="state-row"><span>Next refresh</span><strong id="nextRefresh">--</strong></div>
+        </div>
+      </div>
+      <div id="insightFeed" class="card insight-card glass hover-pop"></div>
+
+      <div class="layout-atlas">
+        <div class="map-wrap card glass hover-pop" style="padding:0;">
+          <div id="atlasMap"></div>
+          <div class="map-legend glass">
+            <strong style="font-size:12px;">Solar intensity</strong>
+            <div class="legend-row"><span class="legend-dot" style="background:#3b82f6;"></span><span>Low</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#facc15;"></span><span>Medium</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#ef4444;"></span><span>High</span></div>
+          </div>
+          <div class="atlas-float glass">
+            <h4 id="atlasPanelTitle">Site irradiance (atlas view)</h4>
+            <div class="atlas-metrics" id="atlasFloatMetrics">
+              <div><span>GHI</span><span class="mono" id="fltGhi">—</span></div>
+              <div><span>DNI</span><span class="mono" id="fltDni">—</span></div>
+              <div><span>PV out</span><span class="mono" id="fltPv">—</span></div>
+              <div><span>🌡 Avg °C</span><span class="mono" id="fltTemp">—</span></div>
+              <div><span>Elev.</span><span class="mono" id="fltElev">—</span></div>
+              <div><span>Score</span><span class="mono" id="fltScore">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-lab-stack">
+          <div class="card glass">
+            <div class="controls">
+              <div><label>City</label><select id="citySelect"></select></div>
+              <div><label>Date</label><input id="dateInput" type="date"></div>
+              <div style="display:flex;align-items:flex-end;gap:6px;flex-direction:column;">
+                <button id="runForecastBtn" class="btn btn-amber" style="width:100%;">▶ Run Forecast</button>
+                <button id="optimizeBtn" class="btn btn-ghost" style="width:100%;font-size:12px;">⚡ Optimize My Energy</button>
+              </div>
+            </div>
+            <div id="loadingState" style="display:none;">
+              <div class="skeleton-wrap" style="display:grid;grid-template-columns:repeat(4,1fr);"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+              <div class="skeleton-wrap" style="display:grid;grid-template-columns:1fr;margin-top:8px;"><div class="sk" style="height:200px;"></div></div>
+            </div>
+            <div id="forecastResults" style="display:none;">
+              <div class="stats-row">
+                <div class="card glass hover-pop"><div class="stat-label">☀ Solar Quality</div><div id="solarQualityValue" class="stat-value mono">--</div><div id="solarQualitySub" class="stat-sub">-</div></div>
+                <div class="card glass hover-pop"><div class="stat-label">⚡ Peak Window</div><div id="peakWindowValue" class="stat-value mono" style="font-size:30px;color:var(--amber);">--</div><div class="stat-sub">Best 3-hour block</div></div>
+                <div class="card glass hover-pop"><div class="stat-label">📊 Daily Total</div><div id="dailyTotalValue" class="stat-value mono" style="font-size:30px;">--</div><div class="stat-sub">GHI-equivalent day</div></div>
+                <div class="card glass hover-pop"><div class="stat-label">🔋 Confidence</div><div id="dayConfValue" class="stat-value mono" style="font-size:30px;">--</div><div id="yesterdayCmp" class="stat-sub">-</div></div>
+              </div>
+              <div id="homeSavingsStrip" class="muted" style="font-size:12px;margin-bottom:6px;"></div>
+              <div class="timeline-wrap">
+                <label>⏱ Day timeline focus: <span id="timelineHourLabel" class="mono">12PM</span></label>
+                <input type="range" id="timelineSlider" min="6" max="18" value="12" step="1">
+                <div class="timeline-labels"><span>6AM</span><span>12PM</span><span>6PM</span></div>
+              </div>
+              <div class="chart-side-grid">
+                <div class="card glass hover-pop">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+                  <h3 style="margin:0;">Hourly solar + temperature</h3>
+                  <div id="chartSubTitle" class="muted"></div>
+                </div>
+                  <canvas id="forecastChart" height="118"></canvas>
+                </div>
+                <div class="card glass model-card hover-pop">
+                  <div class="stat-label">Model confidence</div>
+                  <h3 style="margin:7px 0 8px;">NeuroSpike SNN</h3>
+                  <div class="model-kpi"><span>R2 score <span class="info-dot" title="R2 explains how much variation in actual solar irradiance is captured by the model. A value near 1.0 means stronger fit.">i</span></span><strong class="mono" id="trustR2">0.98</strong></div>
+                  <div class="model-kpi"><span>RMSE</span><strong class="mono" id="trustRmse">30 W/m2</strong></div>
+                  <p class="muted" style="line-height:1.45;">High reliability for short-term solar forecasting.</p>
+                  <div class="badge">Last trained on: multi-city 3-year dataset</div>
+                </div>
+              </div>
+              <details class="lab-details" id="detailedMetricsWrap" open>
+                <summary>Detailed metrics and meaning</summary>
+                <table class="metrics-table" id="detailedMetricsTable"></table>
+              </details>
+              <div class="bottom-cards">
+                <div class="card glass hover-pop final-rec">
+                  <h2>FINAL RECOMMENDATION</h2>
+                  <div id="finalRecommendationText" style="font-size:16px;font-weight:800;">Run forecast to generate the decision plan.</div>
+                  <div id="finalRecommendationWhy" class="muted" style="margin-top:6px;"></div>
+                  <div class="decision-grid">
+                    <div class="decision-cell"><div class="stat-label">Use energy</div><strong id="decUse">--</strong></div>
+                    <div class="decision-cell"><div class="stat-label">Store energy</div><strong id="decStore">--</strong></div>
+                    <div class="decision-cell"><div class="stat-label">Avoid usage</div><strong id="decAvoid">--</strong></div>
+                    <div class="decision-cell"><div class="stat-label">Est. savings</div><strong id="decSavings">--</strong></div>
+                  </div>
+                </div>
+                <div class="card glass hover-pop elevated-rec"><h3 id="recTitle" style="margin-top:0;">⚡ TODAY'S ACTION PLAN</h3><div id="recommendationList"></div></div>
+                <div id="industrialBlock" class="card glass hover-pop" style="display:none;">
+                  <h3 style="margin-top:0;">🏭 DAILY OPERATION STRATEGY</h3>
+                  <div class="strategy-block" id="industrialStrategy">
+                    ✔ Optimize production timing<br>✔ Use storage after peak<br>✔ Reduce grid dependency
+                  </div>
+                  <div class="industrial-metrics">
+                    <div class="ind-kpi">Energy cost cut (est.)<strong id="indCost" class="mono">—</strong></div>
+                    <div class="ind-kpi">Load factor opt.<strong id="indLoad" class="mono">—</strong></div>
+                    <div class="ind-kpi">Grid dependency ↓<strong id="indGrid" class="mono">—</strong></div>
+                    <div class="ind-kpi">Production eff. ↑<strong id="indProd" class="mono">—</strong></div>
+                  </div>
+                  <div class="operational-impact">
+                    <div class="impact-title">OPERATIONAL IMPACT</div>
+                    <div class="industrial-metrics">
+                      <div class="ind-kpi">Production loss risk<strong id="opLoss" class="mono">--</strong></div>
+                      <div class="ind-kpi">Grid reduction<strong id="opGrid" class="mono">--</strong></div>
+                      <div class="ind-kpi">Cost savings<strong id="opSavings" class="mono">--</strong></div>
+                      <div class="ind-kpi">Efficiency gain<strong id="opEff" class="mono">--</strong></div>
+                    </div>
+                    <div id="opWarning" class="muted" style="margin-top:8px;line-height:1.45;"></div>
+                  </div>
+                </div>
+                <div class="card glass hover-pop advanced-only"><h3 style="margin-top:0;">Confidence breakdown</h3><div id="confidenceWrap"></div></div>
+                <div class="card glass hover-pop advanced-only"><div class="adv-kpis"><div class="adv-kpi"><div class="muted">RMSE</div><div id="mRmse" class="mono">-</div></div><div class="adv-kpi"><div class="muted">R²</div><div id="mR2" class="mono">-</div></div></div><h4 style="margin:0 0 6px;">Model</h4><div class="muted">Name: <span id="mModel" class="mono"></span><br>Source: NASA POWER API</div></div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="insight-lab card glass" id="insightLab">
+            <button id="toggleLabBtn" class="btn btn-ghost insight-toggle">Insight Lab ▾</button>
+            <div id="labBody">
+              <h3 style="margin-top:2px;">Insight Lab</h3>
+              <div class="muted" style="margin-bottom:6px;">Forecast breakdown</div>
+              <div class="small-chart"><canvas id="labIrrChart" height="72"></canvas></div>
+              <div class="small-chart"><canvas id="labTempChart" height="72"></canvas></div>
+              <div class="small-chart"><canvas id="labConfChart" height="72"></canvas></div>
+              <div style="margin-top:10px;" class="muted">Risk analysis</div>
+              <div id="riskList"></div>
+              <div style="margin-top:10px;" class="muted">Impact analysis</div>
+              <div class="risk-item">Energy vs clear sky: <span id="impactLoss" class="mono"></span></div>
+              <div class="risk-item">Revenue (est.): <span id="impactRevenue" class="mono"></span></div>
+              <div style="margin-top:10px;" class="muted">Key factors <span class="muted">(importance)</span></div>
+              <div class="risk-item" id="factorList"></div>
+              <div style="margin-top:10px;" class="muted">Why this matters</div>
+              <div id="whyMatters" class="risk-item"></div>
+              <div style="margin-top:10px;" class="muted">Scenario</div>
+              <div class="chip-toggle"><button id="clearSkyBtn" class="active">Clear sky</button><button id="cloudyBtn">Cloudy</button></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="savings" class="section">
+      <div class="two-col">
+        <div class="card glass">
+          <h3 style="margin-top:0;">Savings calculator</h3>
+          <div class="form-row"><label>Your city</label><select id="savCity"></select></div>
+          <div class="form-row"><label>Panels <span id="panelsBadge" class="badge mono">6</span></label><input id="panelsInput" type="range" min="1" max="20" value="6"></div>
+          <div class="form-row"><label>Panel watt peak</label><select id="wattInput"><option value="250">250W</option><option value="330">330W</option><option value="400" selected>400W</option><option value="500">500W</option></select></div>
+          <div class="form-row"><label>Tariff ₹/unit</label><input id="tariffInput" type="number" value="7.5" step="0.25"></div>
+          <div class="form-row"><label>Daily usage <span id="usageBadge" class="badge mono">12</span></label><input id="usageInput" type="range" min="5" max="50" value="12"></div>
+          <div class="form-row"><label><input id="batteryInput" type="checkbox"> Battery</label></div>
+          <button id="calcSavingsBtn" class="btn btn-amber">Calculate savings</button>
+        </div>
+        <div id="savingsResults" class="card glass" style="display:none;">
+          <div class="results-grid">
+            <div class="card glass"><div class="stat-label">Monthly gen</div><div id="rMonthlyGen" class="stat-value mono" style="font-size:28px;">-</div></div>
+            <div class="card glass"><div class="stat-label">Monthly ₹</div><div id="rMonthlySav" class="stat-value mono" style="font-size:28px;">-</div></div>
+            <div class="card glass"><div class="stat-label">Annual ₹</div><div id="rAnnualSav" class="stat-value mono" style="font-size:28px;">-</div></div>
+            <div class="card glass"><div class="stat-label">Payback</div><div id="rPayback" class="stat-value mono" style="font-size:28px;">-</div></div>
+          </div>
+          <div class="card glass" style="border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.1);margin-bottom:8px;"><div id="rCo2" class="stat-value mono" style="font-size:28px;color:var(--green);"></div><div id="rTrees" class="muted"></div></div>
+          <div class="card glass" style="margin-bottom:8px;"><div class="muted">We recommend:</div><div id="rRec" style="font-weight:800;margin:4px 0;"></div><div id="rSys" class="muted"></div><div id="rRoi" class="muted"></div></div>
+          <div class="card glass"><h4 style="margin-top:0;">Monthly generation (kWh)</h4><canvas id="savingsChart" height="118"></canvas></div>
+          <div class="muted" style="font-size:11px;margin-top:6px;">Estimates from modeled irradiance. Real sites vary with shading, tilt, and policy.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare" class="section">
+      <div class="card glass" style="margin-bottom:10px;">
+        <h3 style="margin-top:0;">Global solar rankings — this week</h3>
+        <div id="compareSubtitle" class="muted"></div>
+        <table class="table"><thead><tr><th>Rank</th><th>City</th><th>Sky</th><th>Avg W/m²</th><th>Score</th><th>Bar</th></tr></thead><tbody id="compareBody"></tbody></table>
+      </div>
+      <div class="card glass"><canvas id="compareChart" height="128"></canvas></div>
+    </section>
+  </main>
+
+  <div id="profileModal" class="modal-overlay">
+    <div class="modal card glass">
+      <h3 style="margin-top:0;">Set up your solar profile</h3>
+      <p class="muted">Takes 30 seconds. We'll personalise the atlas + dashboard.</p>
+      <div class="form-row"><label>City</label><select id="profileCity"></select></div>
+      <div class="form-row"><label>Panels <span id="profilePanelsBadge" class="badge mono">6</span></label><input id="profilePanels" type="range" min="1" max="20" value="6"></div>
+      <div class="form-row"><label>Panel watt</label><select id="profileWatt"><option>250</option><option>330</option><option selected>400</option><option>500</option></select></div>
+      <div class="form-row"><label>Tariff</label><input id="profileTariff" type="number" step="0.25" value="7.5"></div>
+      <div class="form-row"><label><input id="profileBattery" type="checkbox"> Battery</label></div>
+      <div style="display:flex;gap:8px;"><button id="saveProfileBtn" class="btn btn-amber" style="flex:1;">Save</button><button id="skipProfileBtn" class="btn btn-ghost" style="flex:1;">Skip</button></div>
+    </div>
+  </div>
+
+  <div id="decisionModal" class="modal-overlay">
+    <div class="modal card glass">
+      <h3 style="margin-top:0;">⚡ Optimized action plan</h3>
+      <p class="muted" id="decisionSub"></p>
+      <div id="decisionBody" class="risk-item" style="line-height:1.6;"></div>
+      <button id="decisionClose" class="btn btn-amber" style="width:100%;margin-top:10px;">Done</button>
+    </div>
+  </div>
+
+  <script>
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    let cities = [], compareRows = [], currentForecast = null, yesterdayForecast = null;
+    let forecastChart = null, savingsChart = null, compareChart = null, labIrr = null, labTemp = null, labConf = null;
+    let currentMode = "simple", scenario = "clear", savingsInitialized = false, labOpen = true;
+    let useCase = "home";
+    let atlasMap = null, heatLayer = null, markersLayer = null;
+    let timelineHour = 12;
+
+    const MAP_COORDS = {
+      riyadh: [24.7136, 46.6753], cairo: [30.0444, 31.2357], istanbul: [41.0082, 28.9784],
+      new_delhi: [28.6139, 77.2090], dubai: [25.2048, 55.2708], london: [51.5072, -0.1276],
+      sydney: [-33.8688, 151.2093], tokyo: [35.6762, 139.6503],
+      los_angeles: [34.0522, -118.2437], nairobi: [-1.2921, 36.8219]
+    };
+    const FALLBACK_CITIES = [
+      { id:"riyadh", name:"Riyadh", flag:"SA", peak_sun_hours:6.7 },
+      { id:"cairo", name:"Cairo", flag:"EG", peak_sun_hours:6.8 },
+      { id:"istanbul", name:"Istanbul", flag:"TR", peak_sun_hours:4.5 },
+      { id:"new_delhi", name:"New Delhi", flag:"IN", peak_sun_hours:5.5 },
+      { id:"dubai", name:"Dubai", flag:"AE", peak_sun_hours:6.5 },
+      { id:"london", name:"London", flag:"GB", peak_sun_hours:3.0 },
+      { id:"sydney", name:"Sydney", flag:"AU", peak_sun_hours:5.2 },
+      { id:"tokyo", name:"Tokyo", flag:"JP", peak_sun_hours:4.0 },
+      { id:"los_angeles", name:"Los Angeles", flag:"US", peak_sun_hours:6.0 },
+      { id:"nairobi", name:"Nairobi", flag:"KE", peak_sun_hours:5.8 }
+    ];
+    const FALLBACK_MULTIPLIERS = {
+      riyadh:1.18, cairo:1.15, istanbul:0.82, new_delhi:1.0, dubai:1.1,
+      london:0.62, sydney:0.9, tokyo:0.78, los_angeles:1.05, nairobi:0.98
+    };
+
+    const els = {
+      citySelect: document.getElementById("citySelect"), dateInput: document.getElementById("dateInput"),
+      loadingState: document.getElementById("loadingState"), forecastResults: document.getElementById("forecastResults"),
+      apiError: document.getElementById("apiError"), retryBtn: document.getElementById("retryBtn"),
+      runForecastBtn: document.getElementById("runForecastBtn"), insightFeed: document.getElementById("insightFeed"),
+      simpleBtn: document.getElementById("simpleBtn"), advancedBtn: document.getElementById("advancedBtn"),
+      profileBadge: document.getElementById("profileBadge"), profileModal: document.getElementById("profileModal")
+    };
+
+    const fmtHr = (h) => `${h % 12 === 0 ? 12 : h % 12}${h >= 12 ? "PM" : "AM"}`;
+    const scoreLabel = (s) => s > 70 ? "Great Day" : s > 40 ? "Moderate Day" : "Poor Day";
+    const scoreColor = (s) => s > 70 ? "var(--green)" : s > 40 ? "var(--amber)" : "var(--red)";
+    const pseudoTemp = (h, irr) => Math.round(18 + (irr / 100) * 0.88 + Math.sin((h - 6) / 12 * Math.PI) * 4.2);
+    const mockElev = (id) => ({
+      riyadh:612, cairo:74, istanbul:39, new_delhi:216, dubai:15,
+      london:11, sydney:58, tokyo:40, los_angeles:93, nairobi:1795
+    }[id] ?? 120);
+
+    function animateCount(el, target, suffix = "", prefix = "", duration = 650) {
+      if (!el) return;
+      const start = performance.now();
+      const init = Number(el.dataset.current || 0) || 0;
+      const end = Number(target) || 0;
+      function frame(now) {
+        const p = Math.min(1, (now - start) / duration);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const v = init + (end - init) * ease;
+        el.textContent = `${prefix}${Math.round(v).toLocaleString()}${suffix}`;
+        if (p < 1) requestAnimationFrame(frame); else el.dataset.current = String(Math.round(end));
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function weatherIcon(score) { return score > 72 ? "☀ Sunny" : score > 45 ? "⛅ Partly" : "🌥 Cloudy"; }
+    function showApiError(show) { els.apiError.style.display = show ? "block" : "none"; }
+
+    function cityIdOrAlias(id) { return id === "delhi" ? "new_delhi" : id; }
+    function fallbackSeed(...parts) {
+      return [...parts.join("::")].reduce((acc, ch) => ((acc * 31) + ch.charCodeAt(0)) >>> 0, 2166136261);
+    }
+    function fallbackRand(seed) {
+      let s = seed || 1;
+      return () => {
+        s = (1664525 * s + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+    function fallbackForecast(cityId, date) {
+      cityId = cityIdOrAlias(cityId);
+      const city = FALLBACK_CITIES.find(c => c.id === cityId) || FALLBACK_CITIES[3];
+      const rand = fallbackRand(fallbackSeed(cityId, date || ""));
+      const maxIrradiance = 700 + rand() * 250;
+      const multiplier = FALLBACK_MULTIPLIERS[city.id] || 1;
+      const hourly = Array.from({ length:24 }, (_, hour) => {
+        let irradiance = 0, confidence_pct = 0;
+        if (hour >= 6 && hour <= 18) {
+          const weatherFactor = 0.75 + rand() * 0.25;
+          irradiance = Math.max(0, maxIrradiance * Math.sin(Math.PI * (hour - 6) / 12) * multiplier * weatherFactor);
+          confidence_pct = Math.round(75 + rand() * 20);
+        }
+        return {
+          hour, irradiance:Math.round(irradiance * 10) / 10,
+          confidence_lower:Math.round(irradiance * 8.8) / 10,
+          confidence_upper:Math.round(irradiance * 11.2) / 10,
+          confidence_pct
+        };
+      });
+      const total = hourly.reduce((sum, row) => sum + row.irradiance, 0);
+      const daylight = hourly.filter(h => h.hour >= 6 && h.hour <= 18);
+      let best = { start:10, avg:-1 };
+      for (let i = 0; i < daylight.length - 2; i++) {
+        const avg = (daylight[i].irradiance + daylight[i + 1].irradiance + daylight[i + 2].irradiance) / 3;
+        if (avg > best.avg) best = { start:daylight[i].hour, avg };
+      }
+      return {
+        city:city.name, date,
+        solar_quality_score:Math.max(0, Math.min(100, Math.round((total / 14000) * 100))),
+        peak_window:{ start:best.start, end:best.start + 3 },
+        daily_total_kwh:Math.round(total / 10) / 100,
+        model_used:"Local Preview",
+        model_rmse:45.5,
+        model_r2:0.962,
+        hourly
+      };
+    }
+    function fallbackSavings(payload) {
+      const city = FALLBACK_CITIES.find(c => c.id === cityIdOrAlias(payload.city_id)) || FALLBACK_CITIES[3];
+      const system_kwp = payload.panels * payload.watt_peak / 1000;
+      const monthly_gen_kwh = system_kwp * city.peak_sun_hours * 0.80 * 30;
+      const usable = Math.min(monthly_gen_kwh, payload.daily_consumption_kwh * 30);
+      const monthly_savings_inr = usable * payload.tariff;
+      const annual_savings_inr = monthly_savings_inr * 12;
+      const co2_avoided_kg_per_year = monthly_gen_kwh * 12 * 0.82;
+      const payback_years = annual_savings_inr > 0 ? (system_kwp * 55000) / annual_savings_inr : 99;
+      return {
+        system_kwp:Math.round(system_kwp * 100) / 100,
+        monthly_gen_kwh:Math.round(monthly_gen_kwh * 10) / 10,
+        monthly_savings_inr:Math.round(monthly_savings_inr * 10) / 10,
+        annual_savings_inr:Math.round(annual_savings_inr * 10) / 10,
+        co2_avoided_kg_per_year:Math.round(co2_avoided_kg_per_year * 10) / 10,
+        payback_years:Math.round(payback_years * 10) / 10,
+        recommended_system:system_kwp < 1.5 ? "Small (1-1.5 kWp)" : system_kwp < 3.5 ? "Medium (2-3 kWp)" : "Large (4+ kWp)",
+        trees_equivalent:Math.round(co2_avoided_kg_per_year / 22)
+      };
+    }
+    function fallbackCompareRows() {
+      const today = toDateString(new Date());
+      return FALLBACK_CITIES.map(city => {
+        const forecast = fallbackForecast(city.id, today);
+        const daylight = forecast.hourly.filter(h => h.hour >= 6 && h.hour <= 18);
+        const avg = daylight.reduce((sum, h) => sum + h.irradiance, 0) / daylight.length;
+        return { id:city.id, name:city.name, flag:city.flag, avg_irradiance:Math.round(avg), score:Math.max(0, Math.min(100, Math.round(avg / 10))) };
+      }).sort((a, b) => b.avg_irradiance - a.avg_irradiance).map((row, i) => ({ ...row, rank:i + 1 }));
+    }
+
+    function getRecommendations(hourly, peakWindow) {
+      const peak = peakWindow;
+      const afterPeak = { start: peak.end, end: Math.min(peak.end + 2, 18) };
+      const evening = { start: afterPeak.end, end: 19 };
+      return [
+        { icon: "🏠", time: `${fmtHr(peak.start)}–${fmtHr(peak.end)}`, action: "Run heavy appliances", note: "(AC, washing, dishwasher)" },
+        { icon: "🔋", time: `${fmtHr(afterPeak.start)}–${fmtHr(afterPeak.end)}`, action: "Charge battery bank", note: "(If you have storage)" },
+        { icon: "📤", time: `${fmtHr(afterPeak.end)}–${fmtHr(evening.end)}`, action: "Grid export window", note: "(Best sell-back window)" },
+        { icon: "⚠️", time: `After ${fmtHr(evening.end)}`, action: "Generation drops fast", note: "Shift remaining loads to morning" }
+      ];
+    }
+
+    function getIndustrialInsights(data, daylight) {
+      const peak = data.peak_window;
+      const irrAfternoon = daylight.filter(h => h.hour >= 15).map(h => h.irradiance);
+      const drop = irrAfternoon.length ? Math.round((1 - Math.min(...irrAfternoon) / Math.max(1, Math.max(...daylight.map(d => d.irradiance)))) * 100) : 18;
+      return [
+        { icon: "🏭", time: `${fmtHr(peak.start)}–${fmtHr(peak.end)}`, action: "Load scheduling", note: "Run high-load machinery during this solar peak." },
+        { icon: "⚡", time: `${fmtHr(peak.start)}–${fmtHr(peak.end + 1)}`, action: "Energy optimization", note: "Shift production cycles into the irradiance plateau." },
+        { icon: "📤", time: `${fmtHr(peak.end)}–${fmtHr(Math.min(18, peak.end + 3))}`, action: "Grid interaction", note: "Export excess when local tariff is elevated (modeled)." },
+        { icon: "⚠️", time: `Post-${fmtHr(peak.end + 1)}`, action: "Risk management", note: `Cloud fluctuation may impact output by ~${Math.min(35, drop + 5)}%.` }
+      ];
+    }
+
+    function setUseCase(mode) {
+      useCase = mode;
+      document.getElementById("homeUseBtn").classList.toggle("active", mode === "home");
+      document.getElementById("indUseBtn").classList.toggle("active", mode === "industrial");
+      document.getElementById("industrialBlock").style.display = mode === "industrial" ? "block" : "none";
+      document.getElementById("recTitle").textContent = mode === "home" ? "⚡ TODAY'S ACTION PLAN" : "🏭 INDUSTRIAL OPERATIONS";
+      if (currentForecast) renderForecast(currentForecast, yesterdayForecast);
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll(".advanced-only").forEach(el => { el.style.display = mode === "advanced" ? "block" : "none"; });
+      els.simpleBtn.classList.toggle("active", mode === "simple");
+      els.advancedBtn.classList.toggle("active", mode === "advanced");
+      if (currentForecast) renderForecast(currentForecast, yesterdayForecast);
+    }
+
+    async function updateInsightCard() {
+      const profile = getProfile();
+      if (!profile) {
+        els.insightFeed.innerHTML = `<div style="display:flex;justify-content:space-between;"><strong>☀ Solar brief</strong><span class="muted">Profile</span></div><p class="muted">Set your profile to unlock atlas-personalized briefs.</p>`;
+        return;
+      }
+      try {
+        const today = new Date(), y = new Date(today); y.setDate(today.getDate() - 1);
+        const [tRes, yRes] = await Promise.all([
+          fetch("/api/forecast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city_id: profile.cityId, date: today.toISOString().slice(0, 10) }) }),
+          fetch("/api/forecast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city_id: profile.cityId, date: y.toISOString().slice(0, 10) }) })
+        ]);
+        const tData = await tRes.json(), yData = await yRes.json();
+        const delta = yData.solar_quality_score ? Math.round(((tData.solar_quality_score - yData.solar_quality_score) / yData.solar_quality_score) * 100) : 0;
+        const score = tData.solar_quality_score, badgeColor = score > 70 ? "#10B981" : score > 45 ? "#F59E0B" : "#EF4444";
+        els.insightFeed.style.borderLeftColor = badgeColor;
+        els.insightFeed.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <strong>${score > 60 ? "☀️" : "🌥️"} YOUR SOLAR BRIEF — ${tData.city.toUpperCase()}</strong>
+            <span class="insight-badge" style="color:${badgeColor};border:1px solid ${badgeColor}55;">${scoreLabel(score).replace(" Day","").toUpperCase()}</span>
+          </div>
+          <div class="muted" style="margin:8px 0;">${weatherIcon(score)} • ${delta >= 0 ? "+" : ""}${delta}% vs yesterday</div>
+          <p style="margin:0;">Best window: ${fmtHr(tData.peak_window.start)}–${fmtHr(tData.peak_window.end)}. Peak ≈ ${Math.round(tData.hourly[tData.peak_window.start].irradiance)} W/m².</p>`;
+      } catch {}
+    }
+
+    async function loadCities() {
+      try {
+        const res = await fetch("/api/cities");
+        if (!res.ok) throw new Error("cities");
+        const data = await res.json();
+        cities = data.cities;
+      } catch {
+        cities = FALLBACK_CITIES;
+        showApiError(true);
+      }
+      const options = cities.map(c => `<option value="${c.id}">${c.flag} ${c.name}</option>`).join("");
+      ["citySelect", "savCity", "profileCity"].forEach(id => { document.getElementById(id).innerHTML = options; });
+    }
+
+    async function refreshCompare() {
+      try {
+        const r = await fetch("/api/compare");
+        if (r.ok) compareRows = (await r.json()).cities || [];
+      } catch { compareRows = fallbackCompareRows(); }
+    }
+
+    function intensityBucket(rankRatio) {
+      if (rankRatio >= 0.68) return { label:"High", color:"#ef4444" };
+      if (rankRatio >= 0.34) return { label:"Medium", color:"#facc15" };
+      return { label:"Low", color:"#3b82f6" };
+    }
+
+    function initAtlasMap() {
+      if (atlasMap) return;
+      atlasMap = L.map("atlasMap", { zoomControl: true, attributionControl: false }).setView([20, 10], 2);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { subdomains: "abcd", maxZoom: 20 }).addTo(atlasMap);
+      markersLayer = L.layerGroup().addTo(atlasMap);
+    }
+
+    function updateMapLayer() {
+      initAtlasMap();
+      markersLayer.clearLayers();
+      if (heatLayer) { atlasMap.removeLayer(heatLayer); heatLayer = null; }
+      const heatPoints = [];
+      const maxI = Math.max(1, ...compareRows.map(r => r.avg_irradiance || 0));
+      const ranked = [...compareRows].sort((a, b) => (a.avg_irradiance || 0) - (b.avg_irradiance || 0));
+      const rankMap = new Map(ranked.map((row, index) => [row.id, ranked.length <= 1 ? 1 : index / (ranked.length - 1)]));
+      compareRows.forEach(row => {
+        const coords = MAP_COORDS[row.id];
+        if (!coords) return;
+        const t = (row.avg_irradiance || 0) / maxI;
+        heatPoints.push([coords[0], coords[1], Math.max(0.2, t * 1.2)]);
+        const bucket = intensityBucket(rankMap.get(row.id) || 0);
+        const c = bucket.color;
+        const m = L.circleMarker(coords, { radius: 8 + t * 10, color: c, fillColor: c, fillOpacity: 0.55, weight: 2 })
+          .bindTooltip(`<strong>${row.name}</strong><br/>Avg: ${row.avg_irradiance} W/m²<br/>Score: ${row.score}`, { direction: "top", sticky: true });
+        m.on("click", () => {
+          els.citySelect.value = row.id;
+          updateMapPanelFromRow(row);
+          runForecast();
+        });
+        m.addTo(markersLayer);
+      });
+      if (typeof L.heatLayer === "function" && heatPoints.length) {
+        heatLayer = L.heatLayer(heatPoints, { radius: 35, blur: 22, maxZoom: 12, gradient: { 0.35: "#3b82f6", 0.55: "#facc15", 0.85: "#f97316", 1: "#ef4444" } }).addTo(atlasMap);
+      }
+    }
+
+    function updateMapPanelFromRow(row) {
+      const ghi = +(row.avg_irradiance / 155).toFixed(2);
+      const dni = +(ghi * 0.72).toFixed(2);
+      const pv = +(ghi * 0.84).toFixed(2);
+      const temp = Math.round(19 + row.score * 0.16);
+      document.getElementById("atlasPanelTitle").textContent = `${row.name} analytical snapshot`;
+      document.getElementById("fltGhi").textContent = `${ghi} kWh/m2`;
+      document.getElementById("fltDni").textContent = `${dni} kWh/m2`;
+      document.getElementById("fltPv").textContent = `${pv} kWh/kWp`;
+      document.getElementById("fltTemp").textContent = `${temp}°C`;
+      document.getElementById("fltElev").textContent = `${mockElev(row.id)} m`;
+      document.getElementById("fltScore").textContent = `${row.score}`;
+    }
+
+    function computeAtlasMetrics(data, daylight) {
+      const ghi = data.daily_total_kwh;
+      const dni = +(ghi * 0.72).toFixed(2);
+      const diff = +(ghi * 0.35).toFixed(2);
+      const pvKwhKwp = +(ghi * 0.85).toFixed(2);
+      const temps = daylight.map(h => pseudoTemp(h.hour, h.irradiance));
+      const tAvg = Math.round(temps.reduce((a, b) => a + b, 0) / Math.max(1, temps.length));
+      const peakIrr = Math.max(...daylight.map(h => h.irradiance));
+      const vari = daylight.length > 2 ? Math.round(stddev(daylight.map(h => h.irradiance)) / Math.max(1, peakIrr) * 100) : 12;
+      return { ghi, dni, diff, pvKwhKwp, tAvg, peakIrr, vari };
+    }
+    function stddev(arr) {
+      const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+      return Math.sqrt(arr.reduce((s, x) => s + Math.pow(x - m, 2), 0) / arr.length);
+    }
+
+    function updateFloatPanel(data, daylight, cityId) {
+      const m = computeAtlasMetrics(data, daylight);
+      document.getElementById("atlasPanelTitle").textContent = `${data.city} analytical snapshot`;
+      document.getElementById("fltGhi").textContent = `${m.ghi} kWh/m²`;
+      document.getElementById("fltDni").textContent = `${m.dni} kWh/m²`;
+      document.getElementById("fltPv").textContent = `${m.pvKwhKwp} kWh/kWp`;
+      document.getElementById("fltTemp").textContent = `${m.tAvg}°C`;
+      document.getElementById("fltElev").textContent = `${mockElev(cityId)} m`;
+      document.getElementById("fltScore").textContent = `${data.solar_quality_score}`;
+    }
+
+    function renderDetailedMetrics(data, daylight, cityId) {
+      const m = computeAtlasMetrics(data, daylight);
+      const eff = Math.min(96, Math.round(72 + data.solar_quality_score * 0.22));
+      const rows = [
+        ["GHI", `${m.ghi} kWh/m²`, "Daily global horizontal irradiance on a horizontal plane."],
+        ["DNI", `${m.dni} kWh/m²`, "Direct normal irradiance — beam component useful for tracking arrays."],
+        ["Diffuse", `${m.diff} kWh/m²`, "Sky-diffuse component; rises on hazy or cloudy days."],
+        ["PV yield", `${m.pvKwhKwp} kWh/kWp`, "Modeled energy yield per kWp for a standard efficiency assumption."],
+        ["Temp avg", `${m.tAvg}°C`, "Proxy temperature curve from irradiance (illustrative, not observational)."],
+        ["Efficiency", `${eff}%`, "Illustrative inverter + module utilization for the modeled day."],
+        ["Peak irradiance", `${Math.round(m.peakIrr)} W/m²`, "Highest hourly irradiance in the daylight window."],
+        ["Daily total", `${data.daily_total_kwh} kWh/m²`, "Integrated daily energy density."],
+        ["Variability", `${m.vari}%`, "Relative spread of hourly irradiance vs peak — higher means trickier scheduling."]
+      ];
+      document.getElementById("detailedMetricsTable").innerHTML = rows.map(([k, v, tip]) =>
+        `<tr><th>${k}<span class="metric-tip" title="${tip.replace(/"/g, "&quot;")}">i</span></th><td class="mono">${v}</td><td class="muted">${tip}</td></tr>`
+      ).join("");
+    }
+
+    function toDateString(d) { return d.toISOString().slice(0, 10); }
+    function prevDate(iso) { const d = new Date(iso); d.setDate(d.getDate() - 1); return toDateString(d); }
+
+    async function runForecast() {
+      showApiError(false);
+      els.loadingState.style.display = "block";
+      els.forecastResults.style.display = "none";
+      document.querySelectorAll("#loadingState .skeleton-wrap").forEach(el => { el.style.display = "grid"; });
+      const cityId = els.citySelect.value, date = els.dateInput.value;
+      try {
+        const [tResp, yResp] = await Promise.all([
+          fetch("/api/forecast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city_id: cityId, date }) }),
+          fetch("/api/forecast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city_id: cityId, date: prevDate(date) }) }),
+          sleep(1500)
+        ]);
+        if (!tResp.ok || !yResp.ok) throw new Error("forecast failed");
+        currentForecast = await tResp.json();
+        yesterdayForecast = await yResp.json();
+        renderForecast(currentForecast, yesterdayForecast);
+      } catch {
+        currentForecast = fallbackForecast(cityId, date);
+        yesterdayForecast = fallbackForecast(cityId, prevDate(date));
+        renderForecast(currentForecast, yesterdayForecast);
+        showApiError(true);
+      }
+      finally {
+        els.loadingState.style.display = "none";
+        document.querySelectorAll("#loadingState .skeleton-wrap").forEach(el => { el.style.display = "none"; });
+      }
+    }
+
+    function applyScenario(hourly) {
+      if (scenario === "clear") return hourly.map(h => ({ ...h }));
+      return hourly.map(h => ({
+        ...h,
+        irradiance: +(h.irradiance * 0.78).toFixed(1),
+        confidence_lower: +(h.confidence_lower * 0.76).toFixed(1),
+        confidence_upper: +(h.confidence_upper * 0.8).toFixed(1),
+        confidence_pct: Math.max(58, h.confidence_pct - 12)
+      }));
+    }
+
+    function homeDailySavingsEstimate(data) {
+      const p = getProfile();
+      const tariff = p?.tariff ?? 7.5;
+      const kwh = data.daily_total_kwh * (p ? (p.panels * p.wattPeak / 1000) * 0.8 : 2.4 * 0.8);
+      return Math.round(Math.min(kwh, (p?.panels ? p.panels * 2 : 12)) * tariff);
+    }
+
+    function updateSystemState() {
+      const now = new Date();
+      const next = new Date(now.getTime() + 15 * 60 * 1000);
+      document.getElementById("sysStatus").textContent = "Active";
+      document.getElementById("lastUpdated").textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      document.getElementById("nextRefresh").textContent = next.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function updateAiMessage(data, daylight) {
+      const score = data.solar_quality_score;
+      const avgConf = Math.round(daylight.reduce((s, h) => s + h.confidence_pct, 0) / daylight.length);
+      const peak = data.peak_window;
+      const label = score > 70 ? "strong" : score > 45 ? "moderate" : "limited";
+      document.getElementById("aiMessageText").textContent =
+        `Solar conditions are ${label} today. Optimization recommended.`;
+      document.getElementById("aiMessageSub").textContent =
+        `Best decision window: ${fmtHr(peak.start)}-${fmtHr(peak.end)} with ${avgConf}% model confidence.`;
+    }
+
+    function renderFinalDecision(data, daylight) {
+      const peak = data.peak_window;
+      const storeStart = Math.max(peak.start + 1, peak.end - 1);
+      const storeEnd = Math.min(18, peak.end + 2);
+      const low = daylight.filter(h => h.irradiance < 180).map(h => h.hour);
+      const avoidText = low.length ? `Before ${fmtHr(Math.min(...low))} or after ${fmtHr(Math.max(...low))}` : `After ${fmtHr(storeEnd)}`;
+      const savings = useCase === "industrial"
+        ? Math.round(1800 + data.solar_quality_score * 42)
+        : homeDailySavingsEstimate(data);
+      const reason = useCase === "industrial"
+        ? "Shift high-load machinery into the solar plateau and reserve grid draw for post-peak variability."
+        : "Use appliances during the forecast peak, then charge storage before the evening drop.";
+      document.getElementById("finalRecommendationText").textContent =
+        useCase === "industrial"
+          ? `Run major production loads from ${fmtHr(peak.start)}-${fmtHr(peak.end)}.`
+          : `Use heavy appliances from ${fmtHr(peak.start)}-${fmtHr(peak.end)}.`;
+      document.getElementById("finalRecommendationWhy").textContent = reason;
+      document.getElementById("decUse").textContent = `${fmtHr(peak.start)}-${fmtHr(peak.end)}`;
+      document.getElementById("decStore").textContent = `${fmtHr(storeStart)}-${fmtHr(storeEnd)}`;
+      document.getElementById("decAvoid").textContent = avoidText;
+      document.getElementById("decSavings").textContent = `₹${savings.toLocaleString()}${useCase === "industrial" ? "/day" : " today"}`;
+    }
+
+    function renderIndustrialKpis(data, daylight) {
+      const score = data.solar_quality_score;
+      const cost = Math.round(2800 + (100 - score) * 42);
+      const load = Math.min(98, Math.round(72 + score * 0.22));
+      const grid = Math.min(95, Math.round(48 + score * 0.28));
+      const prod = Math.min(99, Math.round(64 + score * 0.18));
+      const variability = Math.round(stddev(daylight.map(h => h.irradiance)) / Math.max(1, Math.max(...daylight.map(h => h.irradiance))) * 100);
+      const lossRisk = Math.min(38, Math.max(4, Math.round((100 - score) * 0.22 + variability * 0.35)));
+      const savings = Math.round(1800 + score * 42);
+      const effGain = Math.min(24, Math.round(8 + score * 0.12));
+      animateCount(document.getElementById("indCost"), cost, " ₹/day", "≈ ");
+      document.getElementById("indLoad").textContent = `${load}%`;
+      document.getElementById("indGrid").textContent = `${grid}%`;
+      document.getElementById("indProd").textContent = `${prod}%`;
+      document.getElementById("opLoss").textContent = `${lossRisk}%`;
+      document.getElementById("opGrid").textContent = `${grid}%`;
+      document.getElementById("opSavings").textContent = `₹${savings.toLocaleString()}/day`;
+      document.getElementById("opEff").textContent = `${effGain}%`;
+      document.getElementById("industrialStrategy").innerHTML =
+        `Schedule high-load lines for ${fmtHr(data.peak_window.start)}-${fmtHr(data.peak_window.end)}.<br>` +
+        `Charge storage during the plateau, then reduce grid import after ${fmtHr(data.peak_window.end)}.<br>` +
+        `Export only when battery reserve is above 65% and forecast confidence stays above 78%.`;
+      document.getElementById("opWarning").textContent =
+        lossRisk > 18
+          ? "Risk warning: keep grid buffer available for afternoon fluctuation and avoid committing all flexible loads to a single block."
+          : "Risk warning: conditions are stable enough for planned load shifting, with a small grid reserve for protection.";
+    }
+
+    function renderForecast(data, yData) {
+      els.forecastResults.style.display = "block";
+      const cityId = els.citySelect.value;
+      const scoreEl = document.getElementById("solarQualityValue");
+      const score = data.solar_quality_score;
+      scoreEl.classList.remove("score-glow-good", "score-glow-mid", "score-glow-bad");
+      scoreEl.classList.add(score > 70 ? "score-glow-good" : score > 40 ? "score-glow-mid" : "score-glow-bad");
+      scoreEl.style.color = scoreColor(score);
+      if (currentMode === "simple") scoreEl.textContent = `${scoreLabel(score)} ☀️`;
+      else animateCount(scoreEl, score);
+
+      document.getElementById("solarQualitySub").textContent = `${weatherIcon(score)} • ${useCase === "home" ? "Home optimization" : "Industrial scheduling"}`;
+      document.getElementById("peakWindowValue").textContent = `${fmtHr(data.peak_window.start)}–${fmtHr(data.peak_window.end)}`;
+      document.getElementById("dailyTotalValue").textContent = `${data.daily_total_kwh} kWh/m²`;
+
+      let daylight = applyScenario(data.hourly.filter(h => h.hour >= 6 && h.hour <= 18));
+      const avgConf = Math.round(daylight.reduce((s, h) => s + h.confidence_pct, 0) / daylight.length);
+      animateCount(document.getElementById("dayConfValue"), avgConf, "%");
+
+      const delta = yData && yData.solar_quality_score ? Math.round(((score - yData.solar_quality_score) / yData.solar_quality_score) * 100) : 0;
+      document.getElementById("yesterdayCmp").textContent = `${delta >= 0 ? "+" : ""}${delta}% ${delta >= 0 ? "better" : "lower"} than yesterday`;
+
+      document.getElementById("chartSubTitle").textContent = `${data.city} • ${data.date} • ${scenario === "clear" ? "Clear sky" : "Cloudy scenario"}`;
+      document.getElementById("mModel").textContent = data.model_used;
+      document.getElementById("mRmse").textContent = `${data.model_rmse} W/m²`;
+      document.getElementById("mR2").textContent = data.model_r2;
+      document.getElementById("trustR2").textContent = Number(data.model_r2 || 0.98).toFixed(3);
+      document.getElementById("trustRmse").textContent = `${Math.round(data.model_rmse || 30)} W/m2`;
+
+      const recs = useCase === "home" ? getRecommendations(daylight, data.peak_window) : getIndustrialInsights(data, daylight);
+      document.getElementById("recommendationList").innerHTML = recs.map(r => `
+        <div class="rec-row"><div>${r.icon}</div><div class="rec-time mono">${r.time}</div><div><div style="font-weight:800;">${r.action}</div><div class="rec-note">${r.note}</div></div></div>`).join("");
+
+      if (useCase === "industrial") renderIndustrialKpis(data, daylight);
+
+      renderConfidence(daylight);
+      renderForecastChart(data, daylight);
+      renderLab(data, daylight);
+      updateFloatPanel(data, daylight, cityId);
+      renderDetailedMetrics(data, daylight, cityId);
+      renderFinalDecision(data, daylight);
+      updateAiMessage(data, daylight);
+      updateSystemState();
+      updateTimelineInsights();
+    }
+
+    function renderConfidence(daylight) {
+      const m = daylight.filter(h => h.hour < 12);
+      const a = daylight.filter(h => h.hour >= 12 && h.hour <= 18);
+      const d = daylight;
+      const avg = arr => Math.round(arr.reduce((s, x) => s + x.confidence_pct, 0) / arr.length);
+      const vals = [{ label: "Morning", v: avg(m) }, { label: "Afternoon", v: avg(a) }, { label: "Overall", v: avg(d) }];
+      document.getElementById("confidenceWrap").innerHTML = vals.map((x, i) => `
+        <div class="progress-group"><div class="progress-head"><span>${x.label}</span><span class="mono">${x.v}%</span></div><div class="progress-bg"><div class="progress-fill" id="pf${i}"></div></div></div>`).join("");
+      setTimeout(() => vals.forEach((x, i) => { const el = document.getElementById(`pf${i}`); if (el) el.style.width = `${x.v}%`; }), 30);
+    }
+
+    function renderForecastChart(rawData, daylight) {
+      const labels = daylight.map(h => fmtHr(h.hour));
+      const irr = daylight.map(h => h.irradiance);
+      const up = daylight.map(h => h.confidence_upper);
+      const lo = daylight.map(h => h.confidence_lower);
+      const temp = daylight.map(h => pseudoTemp(h.hour, h.irradiance));
+      const grad = (ctx) => {
+        const g = ctx.createLinearGradient(0, 0, 0, 280);
+        g.addColorStop(0, "rgba(245,158,11,.38)"); g.addColorStop(1, "rgba(245,158,11,.04)"); return g;
+      };
+      const tlIdx = Math.max(0, Math.min(daylight.length - 1, daylight.findIndex(h => h.hour >= timelineHour)));
+      const timelinePlugin = {
+        id: "timelineHL",
+        beforeDraw(chart) {
+          const { ctx, chartArea, scales: { x } } = chart;
+          if (!chartArea || tlIdx < 0) return;
+          const x0 = x.getPixelForValue(tlIdx) - 14;
+          const x1 = x.getPixelForValue(tlIdx) + 14;
+          ctx.save();
+          ctx.fillStyle = "rgba(59,130,246,.12)";
+          ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
+          ctx.restore();
+        }
+      };
+      const crosshairPlugin = {
+        id: "crosshair",
+        afterDraw(chart) {
+          const active = chart.tooltip?.getActiveElements?.();
+          if (!active || !active.length) return;
+          const px = active[0].element.x, { top, bottom } = chart.chartArea, c = chart.ctx;
+          c.save(); c.strokeStyle = "rgba(245,158,11,.45)"; c.beginPath(); c.moveTo(px, top); c.lineTo(px, bottom); c.stroke(); c.restore();
+        }
+      };
+      const peakPlugin = {
+        id: "peakBg",
+        beforeDraw(chart) {
+          const { ctx, chartArea, scales: { x } } = chart;
+          if (!chartArea) return;
+          const st = daylight.findIndex(h => h.hour === rawData.peak_window.start);
+          const en = daylight.findIndex(h => h.hour === rawData.peak_window.end - 1);
+          if (st < 0 || en < 0) return;
+          ctx.save();
+          ctx.fillStyle = "rgba(245,158,11,.09)";
+          ctx.fillRect(x.getPixelForValue(st) - 12, chartArea.top, x.getPixelForValue(en) + 12 - (x.getPixelForValue(st) - 12), chartArea.bottom - chartArea.top);
+          ctx.restore();
+        }
+      };
+      const sunPlugin = {
+        id: "sunIndicator",
+        afterDatasetsDraw(chart) {
+          const ds = chart.getDatasetMeta(2);
+          if (!ds?.data?.length) return;
+          const idx = Math.floor((Date.now() / 240) % ds.data.length);
+          const pt = ds.data[idx], c = chart.ctx;
+          c.save(); c.fillStyle = "#fde68a"; c.shadowColor = "#f59e0b"; c.shadowBlur = 16; c.beginPath(); c.arc(pt.x, pt.y, 7, 0, Math.PI * 2); c.fill(); c.restore();
+        }
+      };
+      if (forecastChart) forecastChart.destroy();
+      forecastChart = new Chart(document.getElementById("forecastChart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { data: up, borderColor: "transparent", pointRadius: 0 },
+            { data: lo, borderColor: "transparent", pointRadius: 0, fill: "-1", backgroundColor: "rgba(245,158,11,.12)" },
+            {
+              label: "Irradiance",
+              data: irr,
+              borderColor: "#F59E0B",
+              backgroundColor: (ctx) => grad(ctx.chart.ctx),
+              fill: true,
+              borderWidth: 3,
+              tension: 0.34,
+              pointRadius: 0,
+              pointHoverRadius: 5,
+              shadowOffsetY: 4,
+              shadowBlur: 12
+            },
+            { label: "Temperature", data: temp, borderColor: "#60a5fa", yAxisID: "y1", borderWidth: 2, tension: 0.34, pointRadius: 0 }
+          ]
+        },
+        options: {
+          responsive: true,
+          animation: { duration: 900, easing: "easeOutCubic" },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const i = ctx.dataIndex;
+                  if (ctx.datasetIndex === 2) {
+                    const adv = currentMode === "advanced" ? ` | RMSE ref: ${rawData.model_rmse}` : "";
+                    return `Irradiance: ${Math.round(irr[i])} W/m² | Temp: ${temp[i]}°C | Conf: ${daylight[i].confidence_pct}% | Range: ${Math.round(lo[i])}–${Math.round(up[i])}${adv}`;
+                  }
+                  if (ctx.datasetIndex === 3) return `Temperature: ${temp[i]}°C`;
+                  return "";
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" } },
+            y: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" }, title: { display: true, text: "W/m²", color: "#9CA3AF" } },
+            y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#93c5fd" }, title: { display: true, text: "°C", color: "#93c5fd" } }
+          }
+        },
+        plugins: [peakPlugin, timelinePlugin, crosshairPlugin, sunPlugin]
+      });
+    }
+
+    function renderLab(data, daylight) {
+      const irr = daylight.map(x => x.irradiance);
+      const temp = daylight.map(x => pseudoTemp(x.hour, x.irradiance));
+      const conf = daylight.map(x => x.confidence_pct);
+      const labels = daylight.map(x => fmtHr(x.hour));
+      const mk = (id, inst, vals, color) => {
+        if (inst) inst.destroy();
+        return new Chart(document.getElementById(id), {
+          type: "line",
+          data: { labels, datasets: [{ data: vals, borderColor: color, pointRadius: 0, tension: 0.35, borderWidth: 2 }] },
+          options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+        });
+      };
+      labIrr = mk("labIrrChart", labIrr, irr, "#f59e0b");
+      labTemp = mk("labTempChart", labTemp, temp, "#60a5fa");
+      labConf = mk("labConfChart", labConf, conf, "#34d399");
+
+      const afternoon = daylight.filter(h => h.hour >= 15);
+      const drop = afternoon.length ? Math.round((1 - Math.min(...afternoon.map(h => h.irradiance)) / Math.max(1, Math.max(...irr))) * 100) : 14;
+      const risks = [
+        `High fluctuation expected after ${fmtHr(data.peak_window.end)}.`,
+        scenario === "cloudy" ? "Cloud interference likely — confidence band widens in afternoon." : "Clear-sky envelope — good for firm production schedules.",
+        conf.reduce((s, v) => s + v, 0) / conf.length < 80 ? "Confidence dip near peak — hedge with storage or grid buffer." : "Confidence stable — favorable for aggressive scheduling."
+      ];
+      document.getElementById("riskList").innerHTML = risks.map(r => `<div class="risk-item">${r}</div>`).join("");
+
+      const base = data.hourly.filter(h => h.hour >= 6 && h.hour <= 18).reduce((s, h) => s + h.irradiance, 0);
+      const loss = Math.max(0, Math.round((1 - irr.reduce((s, v) => s + v, 0) / Math.max(1, base)) * 100));
+      const gain = Math.max(0, -loss);
+      document.getElementById("impactLoss").textContent = loss > 0 ? `-${loss}% vs modeled clear envelope` : `+${gain}% vs cloudy baseline`;
+      const rev = Math.round((loss || 8) * (useCase === "industrial" ? 240 : 22));
+      document.getElementById("impactRevenue").textContent = `₹${rev.toLocaleString()} est. ${useCase === "industrial" ? "shift value" : "household opportunity"}`;
+
+      const cloudImp = scenario === "cloudy" ? Math.min(38, 18 + drop) : Math.max(6, 12 + Math.round(drop * 0.25));
+      document.getElementById("whyMatters").textContent =
+        `Cloud interference may reduce effective output by ~${cloudImp}%, affecting ${useCase === "industrial" ? "evening production and export planning" : "appliance timing and battery charging"}.`;
+
+      const factors = [
+        ["Temperature", "↑", "High irradiance hours track warmer cell temps — efficiency drag possible."],
+        ["Cloud cover", scenario === "cloudy" ? "↑" : "→", scenario === "cloudy" ? "Elevated in cloudy scenario — shaves peak and widens uncertainty." : "Moderate variability — peak remains well defined."],
+        ["Humidity", "↓", "Lower humidity often aligns with clearer skies in this synthetic coupling."]
+      ];
+      document.getElementById("factorList").innerHTML = factors.map(([n, a, _]) =>
+        `<div class="factor"><span>${n}</span><span class="${a === "↓" ? "factor-down" : "factor-up"}">${a}</span></div>`).join("");
+    }
+
+    function updateTimelineInsights() {
+      if (!currentForecast) return;
+      const h = timelineHour;
+      document.getElementById("timelineHourLabel").textContent = fmtHr(h);
+      const daylight = applyScenario(currentForecast.hourly.filter(x => x.hour >= 6 && x.hour <= 18));
+      const slot = daylight.find(x => x.hour === h) || daylight[Math.floor(daylight.length / 2)];
+      const strip = document.getElementById("homeSavingsStrip");
+      const base = useCase === "home"
+        ? `💰 Estimated small-scale benefit today: ≈ ₹${homeDailySavingsEstimate(currentForecast).toLocaleString()} / day (profile + tariff heuristic).`
+        : `🏭 Industrial view: prioritizes load shifting & export strategy over appliance tips.`;
+      const extra = ` ⏱ Focus ${fmtHr(h)}: ${Math.round(slot.irradiance)} W/m², conf ${slot.confidence_pct}%. ${slot.irradiance > 500 ? "Strong solar — pull loads forward." : "Softer sun — protect critical loads."}`;
+      strip.textContent = base + extra;
+    }
+
+    function openDecisionModal() {
+      if (!currentForecast) return;
+      const d = currentForecast;
+      const p = getProfile();
+      const daylight = applyScenario(d.hourly.filter(h => h.hour >= 6 && h.hour <= 18));
+      const peak = d.peak_window;
+      const savings = homeDailySavingsEstimate(d);
+      document.getElementById("decisionSub").textContent = `${d.city} • ${d.date} • ${useCase === "home" ? "Home" : "Industrial"} mode`;
+      const plan = useCase === "home"
+        ? `1) Run heavy loads ${fmtHr(peak.start)}–${fmtHr(peak.end)}.<br>2) Pre-cool/pre-heat before ${fmtHr(peak.end + 1)} when irradiance rolls off.<br>3) Target battery charging ${fmtHr(peak.end)}–${fmtHr(Math.min(18, peak.end + 2))}.<br>4) Estimated upside: ≈ ₹${savings.toLocaleString()} today at your tariff${p ? "" : " (default profile)"}.`
+        : `1) Stage high-load equipment for ${fmtHr(peak.start)}–${fmtHr(peak.end)}.<br>2) Shift batch processes into the plateau; idle trim before ${fmtHr(peak.end + 2)}.<br>3) Export strategy: prioritize ${fmtHr(peak.end)}–${fmtHr(Math.min(18, peak.end + 3))} when modeled grid spread is favorable.<br>4) Risk buffer: keep 10–15% spinning reserve if afternoon variability exceeds ~${Math.min(28, 12 + Math.round((100 - d.solar_quality_score) * 0.15))}%.`;
+      document.getElementById("decisionBody").innerHTML = plan;
+      document.getElementById("decisionModal").style.display = "flex";
+    }
+
+    async function runSavings() {
+      try {
+        const payload = {
+          city_id: document.getElementById("savCity").value,
+          panels: Number(document.getElementById("panelsInput").value),
+          watt_peak: Number(document.getElementById("wattInput").value),
+          tariff: Number(document.getElementById("tariffInput").value),
+          daily_consumption_kwh: Number(document.getElementById("usageInput").value),
+          has_battery: document.getElementById("batteryInput").checked
+        };
+        const resp = await fetch("/api/savings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!resp.ok) throw new Error("savings");
+        renderSavings(await resp.json());
+        savingsInitialized = true;
+      } catch {
+        renderSavings(fallbackSavings(payload));
+        savingsInitialized = true;
+        showApiError(true);
+      }
+    }
+
+    function renderSavings(d) {
+      const panel = document.getElementById("savingsResults");
+      panel.style.display = "block";
+      document.getElementById("rMonthlyGen").textContent = `${Math.round(d.monthly_gen_kwh)} kWh`;
+      document.getElementById("rMonthlySav").textContent = `₹${Math.round(d.monthly_savings_inr).toLocaleString()}`;
+      document.getElementById("rAnnualSav").textContent = `₹${Math.round(d.annual_savings_inr).toLocaleString()}`;
+      document.getElementById("rPayback").textContent = `${d.payback_years} yrs`;
+      document.getElementById("rCo2").textContent = `${Math.round(d.co2_avoided_kg_per_year).toLocaleString()} kg CO₂ avoided / yr`;
+      document.getElementById("rTrees").textContent = `≈ ${d.trees_equivalent} trees 🌳`;
+      document.getElementById("rRec").textContent = d.recommended_system;
+      document.getElementById("rSys").textContent = `${d.system_kwp} kWp`;
+      const installedCost = Math.round(d.system_kwp * 55000);
+      document.getElementById("rRoi").textContent = `Capex est. ₹${Math.round(installedCost / 100000 * 10) / 10}–${Math.round((installedCost * 1.2) / 100000 * 10) / 10} L | ROI ~${new Date().getFullYear() + Math.ceil(d.payback_years)}`;
+      const m = [0.8, 0.85, 0.95, 1.0, 1.05, 0.9, 0.75, 0.78, 0.9, 1.0, 0.88, 0.8];
+      const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const vals = m.map(x => Math.round(d.monthly_gen_kwh * x));
+      if (savingsChart) savingsChart.destroy();
+      savingsChart = new Chart(document.getElementById("savingsChart"), {
+        type: "bar",
+        data: { labels, datasets: [{ data: vals, backgroundColor: "#F59E0B" }] },
+        options: { plugins: { legend: { display: false } }, scales: { x: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" } }, y: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" } } } }
+      });
+    }
+
+    async function loadCompare() {
+      try {
+        const resp = await fetch("/api/compare");
+        if (!resp.ok) throw new Error("compare");
+        const rows = (await resp.json()).cities;
+        const sky = ["☀", "⛅", "🌥", "☀", "⛅", "🌥"];
+        document.getElementById("compareBody").innerHTML = rows.map((r, i) => {
+          const rank = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${r.rank}`;
+          const color = r.score > 80 ? "#10B981" : r.score > 50 ? "#F59E0B" : "#EF4444";
+          return `<tr>
+            <td class="rank-badge">${rank}</td>
+            <td>${r.flag} ${r.name}</td>
+            <td>${sky[i % sky.length]}</td>
+            <td class="mono">${r.avg_irradiance}</td>
+            <td><span class="badge" style="color:${color};border-color:${color}66;text-shadow:0 0 12px ${color}80;">${r.score}</span></td>
+            <td><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, r.avg_irradiance / 10)}%;opacity:${i < 3 ? 1 : 0.75};"></div></div></td>
+          </tr>`;
+        }).join("");
+        document.getElementById("compareSubtitle").textContent = `${new Date().toLocaleDateString()} • weekly snapshot`;
+        if (compareChart) compareChart.destroy();
+        const cmpCtx = document.getElementById("compareChart").getContext("2d");
+        const topGrad = (() => {
+          const g = cmpCtx.createLinearGradient(0, 0, 420, 0);
+          g.addColorStop(0, "#F59E0B");
+          g.addColorStop(1, "#ea580c");
+          return g;
+        })();
+        compareChart = new Chart(document.getElementById("compareChart"), {
+          type: "bar",
+          data: {
+            labels: rows.map(r => r.name),
+            datasets: [{
+              data: rows.map(r => r.avg_irradiance),
+              backgroundColor: rows.map((_, i) => (i < 3 ? topGrad : "#3B82F6"))
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            plugins: { legend: { display: false } },
+            scales: { x: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" } }, y: { grid: { color: "#1F2937" }, ticks: { color: "#9CA3AF" } } }
+          }
+        });
+        compareRows = rows;
+        updateMapLayer();
+      } catch {
+        const rows = fallbackCompareRows();
+        const sky = ["â˜€", "â›…", "ðŸŒ¥", "â˜€", "â›…", "ðŸŒ¥"];
+        document.getElementById("compareBody").innerHTML = rows.map((r, i) => {
+          const rank = i === 0 ? "1" : i === 1 ? "2" : i === 2 ? "3" : `${r.rank}`;
+          const color = r.score > 80 ? "#10B981" : r.score > 50 ? "#F59E0B" : "#EF4444";
+          return `<tr>
+            <td class="rank-badge">${rank}</td>
+            <td>${r.flag} ${r.name}</td>
+            <td>${sky[i % sky.length]}</td>
+            <td class="mono">${r.avg_irradiance}</td>
+            <td><span class="badge" style="color:${color};border-color:${color}66;text-shadow:0 0 12px ${color}80;">${r.score}</span></td>
+            <td><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, r.avg_irradiance / 10)}%;opacity:${i < 3 ? 1 : 0.75};"></div></div></td>
+          </tr>`;
+        }).join("");
+        document.getElementById("compareSubtitle").textContent = `${new Date().toLocaleDateString()} - local preview`;
+        compareRows = rows;
+        updateMapLayer();
+        showApiError(true);
+      }
+    }
+
+    function getProfile() { try { return JSON.parse(localStorage.getItem("nsProfile")); } catch { return null; } }
+    function applyProfile(p) {
+      if (!p) return;
+      const savedCity = p.cityId === "delhi" ? "new_delhi" : (p.cityId || "new_delhi");
+      els.citySelect.value = savedCity;
+      document.getElementById("savCity").value = savedCity;
+      document.getElementById("panelsInput").value = p.panels || 6;
+      document.getElementById("wattInput").value = p.wattPeak || 400;
+      document.getElementById("tariffInput").value = p.tariff || 7.5;
+      document.getElementById("batteryInput").checked = !!p.hasBattery;
+      document.getElementById("panelsBadge").textContent = p.panels || 6;
+      els.profileBadge.style.display = "inline-block";
+      els.profileBadge.textContent = `☀ ${p.cityName} — ${p.panels} panels`;
+    }
+
+    function setupProfileModal() {
+      const m = els.profileModal, p = getProfile();
+      if (!p) setTimeout(() => m.style.display = "flex", 2000);
+      else applyProfile(p);
+      document.getElementById("profilePanels").addEventListener("input", e => document.getElementById("profilePanelsBadge").textContent = e.target.value);
+      document.getElementById("saveProfileBtn").onclick = () => {
+        const cityId = document.getElementById("profileCity").value, city = cities.find(c => c.id === cityId);
+        const np = { cityId, cityName: city ? city.name : cityId, panels: Number(document.getElementById("profilePanels").value), wattPeak: Number(document.getElementById("profileWatt").value), tariff: Number(document.getElementById("profileTariff").value), hasBattery: document.getElementById("profileBattery").checked };
+        localStorage.setItem("nsProfile", JSON.stringify(np));
+        m.style.display = "none";
+        applyProfile(np);
+        updateInsightCard();
+      };
+      document.getElementById("skipProfileBtn").onclick = () => m.style.display = "none";
+      els.profileBadge.onclick = () => m.style.display = "flex";
+    }
+
+    function initTabs() {
+      document.querySelectorAll(".nav-link").forEach(b => b.onclick = () => {
+        const t = b.dataset.tab;
+        document.querySelectorAll(".nav-link").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+        document.getElementById(t).classList.add("active");
+        if (t === "compare") loadCompare();
+        if (t === "dashboard") setTimeout(() => atlasMap && atlasMap.invalidateSize(), 200);
+      });
+    }
+
+    async function init() {
+      els.dateInput.value = toDateString(new Date());
+      document.getElementById("panelsInput").addEventListener("input", e => { document.getElementById("panelsBadge").textContent = e.target.value; if (savingsInitialized) runSavings(); });
+      document.getElementById("usageInput").addEventListener("input", e => { document.getElementById("usageBadge").textContent = e.target.value; if (savingsInitialized) runSavings(); });
+      ["wattInput", "tariffInput", "batteryInput", "savCity"].forEach(id => document.getElementById(id).addEventListener("change", () => { if (savingsInitialized) runSavings(); }));
+      els.retryBtn.onclick = runForecast;
+      els.runForecastBtn.onclick = runForecast;
+      document.getElementById("calcSavingsBtn").onclick = runSavings;
+      els.simpleBtn.onclick = () => setMode("simple");
+      els.advancedBtn.onclick = () => setMode("advanced");
+      document.getElementById("homeUseBtn").onclick = () => setUseCase("home");
+      document.getElementById("indUseBtn").onclick = () => setUseCase("industrial");
+      document.getElementById("clearSkyBtn").onclick = () => { scenario = "clear"; document.getElementById("clearSkyBtn").classList.add("active"); document.getElementById("cloudyBtn").classList.remove("active"); if (currentForecast) renderForecast(currentForecast, yesterdayForecast); };
+      document.getElementById("cloudyBtn").onclick = () => { scenario = "cloudy"; document.getElementById("cloudyBtn").classList.add("active"); document.getElementById("clearSkyBtn").classList.remove("active"); if (currentForecast) renderForecast(currentForecast, yesterdayForecast); };
+      document.getElementById("toggleLabBtn").onclick = () => { labOpen = !labOpen; document.getElementById("labBody").style.display = labOpen ? "block" : "none"; document.getElementById("toggleLabBtn").textContent = `Insight Lab ${labOpen ? "▾" : "▸"}`; };
+      document.getElementById("timelineSlider").addEventListener("input", e => { timelineHour = Number(e.target.value); updateTimelineInsights(); if (currentForecast) renderForecastChart(currentForecast, applyScenario(currentForecast.hourly.filter(h => h.hour >= 6 && h.hour <= 18))); });
+      document.getElementById("optimizeBtn").onclick = openDecisionModal;
+      document.getElementById("decisionClose").onclick = () => document.getElementById("decisionModal").style.display = "none";
+
+      initTabs();
+      await loadCities();
+      await refreshCompare();
+      initAtlasMap();
+      updateMapLayer();
+      setupProfileModal();
+      updateInsightCard();
+      applyProfile(getProfile());
+      setUseCase("home");
+      setMode("simple");
+      await runForecast();
+      setTimeout(() => atlasMap && atlasMap.invalidateSize(), 400);
+    }
+    init();
+  </script>
+</body>
+</html>

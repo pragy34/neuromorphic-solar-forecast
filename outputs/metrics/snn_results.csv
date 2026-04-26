@@ -1,0 +1,11 @@
+model,RMSE,MAE,MAPE,R2,Skill,city,horizon
+NeuroSpike_h1,23.905,16.282,13.996,0.995,78.42,riyadh,1
+NeuroSpike_h1,28.019,15.86,10.805,0.9924,72.8,cairo,1
+NeuroSpike_h1,27.742,16.922,27.296,0.9888,65.26,istanbul,1
+NeuroSpike_h1,35.313,17.829,19.294,0.9806,59.22,new_delhi,1
+NeuroSpike_h1,26.992,15.153,11.694,0.9916,72.77,dubai,1
+NeuroSpike_h1,28.267,13.805,17.941,0.9797,51.33,london,1
+NeuroSpike_h1,34.041,17.691,12.886,0.9853,63.29,sydney,1
+NeuroSpike_h1,30.602,17.422,24.989,0.9841,62.17,tokyo,1
+NeuroSpike_h1,27.437,21.592,19.521,0.9921,71.85,los_angeles,1
+NeuroSpike_h1,34.351,24.304,55.737,0.9873,67.22,nairobi,1

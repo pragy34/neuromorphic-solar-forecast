@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.keras
+*.h5
+*.pt
+*.pth
+data/raw/
+data/processed/
+models/saved/
+models/checkpoints/
+.ipynb_checkpoints/

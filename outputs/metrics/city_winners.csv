@@ -1,0 +1,11 @@
+city,best_model,RMSE,R2,Skill
+riyadh,NeuroSpike_h1,23.905,0.995,78.42
+cairo,NeuroSpike_h1,28.019,0.9924,72.8
+istanbul,NeuroSpike_h1,27.742,0.9888,65.26
+new_delhi,NeuroSpike_h1,35.313,0.9806,59.22
+dubai,RandomForest,25.914,0.9923,
+london,NeuroSpike_h1,28.267,0.9797,51.33
+sydney,NeuroSpike_h1,34.041,0.9853,63.29
+tokyo,NeuroSpike_h1,30.602,0.9841,62.17
+los_angeles,NeuroSpike_h1,27.437,0.9921,71.85
+nairobi,NeuroSpike_h1,34.351,0.9873,67.22

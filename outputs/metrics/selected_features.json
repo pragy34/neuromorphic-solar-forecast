@@ -1,0 +1,36 @@
+{
+  "selected_features": [
+    "clearsky_x_kt",
+    "clear_sky_ghi",
+    "GHI_lag24",
+    "GHI_lag1",
+    "hour_sin",
+    "clearness_index",
+    "hour_cos",
+    "doy_cos",
+    "doy_sin"
+  ],
+  "target": "GHI",
+  "reference_city": "new_delhi",
+  "consensus_threshold": 0.15,
+  "total_candidates": 41,
+  "total_selected": 9,
+  "method_weights": {
+    "xgboost": 0.4,
+    "rf": 0.35,
+    "mi": 0.25
+  },
+  "must_include": [
+    "clear_sky_ghi",
+    "clearness_index",
+    "clearsky_x_kt",
+    "GHI_lag1",
+    "GHI_lag24",
+    "solar_elevation",
+    "cos_zenith",
+    "hour_sin",
+    "hour_cos",
+    "doy_sin",
+    "doy_cos"
+  ]
+}
