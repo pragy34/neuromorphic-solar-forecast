@@ -237,10 +237,10 @@
         <div class="map-wrap card glass hover-pop" style="padding:0;">
           <div id="atlasMap"></div>
           <div class="map-legend glass">
-            <strong style="font-size:12px;">Solar intensity</strong>
-            <div class="legend-row"><span class="legend-dot" style="background:#ef4444;"></span><span>Low</span></div>
-            <div class="legend-row"><span class="legend-dot" style="background:#facc15;"></span><span>Medium</span></div>
-            <div class="legend-row"><span class="legend-dot" style="background:#10b981;"></span><span>High</span></div>
+            <strong style="font-size:12px;">Solar quality</strong>
+            <div class="legend-row"><span class="legend-dot" style="background:#ef4444;"></span><span>Poor</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#facc15;"></span><span>Moderate</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:#10b981;"></span><span>Great</span></div>
           </div>
           <div class="atlas-float glass">
             <h4 id="atlasPanelTitle">Site irradiance (atlas view)</h4>
@@ -459,6 +459,18 @@
       riyadh:1.18, cairo:1.15, istanbul:0.82, new_delhi:1.0, dubai:1.1,
       london:0.62, sydney:0.9, tokyo:0.78, los_angeles:1.05, nairobi:0.98
     };
+    const MONTHLY_SOLAR_QUALITY = {
+      riyadh:[76,82,90,95,98,100,98,96,92,86,80,74],
+      cairo:[72,78,86,93,97,99,98,96,91,84,77,70],
+      istanbul:[34,42,55,70,80,88,91,88,76,61,46,36],
+      new_delhi:[58,68,82,94,96,72,48,45,62,82,74,60],
+      dubai:[80,86,92,96,99,100,97,94,92,88,84,79],
+      london:[22,30,42,56,66,72,75,70,58,43,30,22],
+      sydney:[88,84,76,64,52,42,44,54,65,76,84,89],
+      tokyo:[52,58,66,72,68,48,54,64,50,58,60,54],
+      los_angeles:[66,70,76,82,88,94,98,96,90,82,72,66],
+      nairobi:[82,78,70,58,52,56,62,70,76,68,72,80]
+    };
 
     const els = {
       citySelect: document.getElementById("citySelect"), dateInput: document.getElementById("dateInput"),
@@ -470,8 +482,8 @@
     };
 
     const fmtHr = (h) => `${h % 12 === 0 ? 12 : h % 12}${h >= 12 ? "PM" : "AM"}`;
-    const scoreLabel = (s) => s > 70 ? "Great Day" : s > 40 ? "Moderate Day" : "Poor Day";
-    const scoreColor = (s) => s > 70 ? "var(--green)" : s > 40 ? "var(--amber)" : "var(--red)";
+    const scoreLabel = (s) => s >= 75 ? "Great Day" : s >= 50 ? "Moderate Day" : "Poor Day";
+    const scoreColor = (s) => s >= 75 ? "var(--green)" : s >= 50 ? "var(--amber)" : "var(--red)";
     const pseudoTemp = (h, irr) => Math.round(18 + (irr / 100) * 0.88 + Math.sin((h - 6) / 12 * Math.PI) * 4.2);
     const mockElev = (id) => ({
       riyadh:612, cairo:74, istanbul:39, new_delhi:216, dubai:15,
@@ -493,7 +505,7 @@
       requestAnimationFrame(frame);
     }
 
-    function weatherIcon(score) { return score > 72 ? "☀ Sunny" : score > 45 ? "⛅ Partly" : "🌥 Cloudy"; }
+    function weatherIcon(score) { return score >= 75 ? "Sunny" : score >= 50 ? "Partly cloudy" : "Cloudy"; }
     function showApiError(show) { els.apiError.style.display = show ? "block" : "none"; }
 
     function cityIdOrAlias(id) { return id === "delhi" ? "new_delhi" : id; }
@@ -507,29 +519,41 @@
         return s / 4294967296;
       };
     }
+    function seasonalQuality(cityId, dateText) {
+      const d = dateText ? new Date(`${dateText}T00:00:00`) : new Date();
+      const month = Number.isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
+      const base = (MONTHLY_SOLAR_QUALITY[cityId] || MONTHLY_SOLAR_QUALITY.new_delhi)[month];
+      const rand = fallbackRand(fallbackSeed(cityId, dateText || "", "quality"));
+      return Math.max(15, Math.min(100, base + Math.round(rand() * 12) - 6));
+    }
     function fallbackForecast(cityId, date) {
       cityId = cityIdOrAlias(cityId);
       const city = FALLBACK_CITIES.find(c => c.id === cityId) || FALLBACK_CITIES[3];
-      const rand = fallbackRand(fallbackSeed(cityId, date || ""));
-      const maxIrradiance = 700 + rand() * 250;
+      const rand = fallbackRand(fallbackSeed(cityId, date || "", "hourly"));
       const multiplier = FALLBACK_MULTIPLIERS[city.id] || 1;
+      const score = seasonalQuality(city.id, date);
+      const targetDailyKwh = city.peak_sun_hours * (score / 100);
       const hourly = Array.from({ length:24 }, (_, hour) => {
         let irradiance = 0, confidence_pct = 0;
         if (hour >= 6 && hour <= 18) {
-          const weatherFactor = 0.75 + rand() * 0.25;
-          irradiance = Math.max(0, maxIrradiance * Math.sin(Math.PI * (hour - 6) / 12) * multiplier * weatherFactor);
-          confidence_pct = Math.round(75 + rand() * 20);
+          const weatherFactor = 0.92 + rand() * 0.16;
+          irradiance = Math.max(0, Math.sin(Math.PI * (hour - 6) / 12) * 1000 * (score / 100) * multiplier * weatherFactor);
+          confidence_pct = Math.round(70 + score * 0.25 + rand() * 6 - 3);
         }
         return {
-          hour, irradiance:Math.round(irradiance * 10) / 10,
-          confidence_lower:Math.round(irradiance * 8.8) / 10,
-          confidence_upper:Math.round(irradiance * 11.2) / 10,
-          confidence_pct
+          hour, irradiance,
+          confidence_pct:Math.max(0, Math.min(96, confidence_pct))
         };
+      });
+      const rawTotalKwh = hourly.reduce((sum, row) => sum + row.irradiance, 0) / 1000;
+      const scale = rawTotalKwh > 0 ? targetDailyKwh / rawTotalKwh : 0;
+      hourly.forEach(row => {
+        row.irradiance = Math.round(row.irradiance * scale * 10) / 10;
+        row.confidence_lower = Math.round(row.irradiance * 8.8) / 10;
+        row.confidence_upper = Math.round(row.irradiance * 11.2) / 10;
       });
       const total = hourly.reduce((sum, row) => sum + row.irradiance, 0);
       const dailyTotalKwh = Math.round(total / 10) / 100;
-      const expectedDailyKwh = city.peak_sun_hours || 5.5;
       const daylight = hourly.filter(h => h.hour >= 6 && h.hour <= 18);
       let best = { start:10, avg:-1 };
       for (let i = 0; i < daylight.length - 2; i++) {
@@ -538,9 +562,10 @@
       }
       return {
         city:city.name, date,
-        solar_quality_score:Math.max(0, Math.min(100, Math.round((dailyTotalKwh / expectedDailyKwh) * 100))),
+        solar_quality_score:score,
         peak_window:{ start:best.start, end:best.start + 3 },
         daily_total_kwh:dailyTotalKwh,
+        weather_label:weatherIcon(score),
         model_used:"Local Preview",
         model_rmse:45.5,
         model_r2:0.962,
@@ -634,11 +659,11 @@
         ]);
         const tData = await tRes.json(), yData = await yRes.json();
         const delta = yData.solar_quality_score ? Math.round(((tData.solar_quality_score - yData.solar_quality_score) / yData.solar_quality_score) * 100) : 0;
-        const score = tData.solar_quality_score, badgeColor = score > 70 ? "#10B981" : score > 45 ? "#F59E0B" : "#EF4444";
+        const score = tData.solar_quality_score, badgeColor = score >= 75 ? "#10B981" : score >= 50 ? "#F59E0B" : "#EF4444";
         els.insightFeed.style.borderLeftColor = badgeColor;
         els.insightFeed.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-            <strong>${score > 60 ? "☀️" : "🌥️"} YOUR SOLAR BRIEF — ${tData.city.toUpperCase()}</strong>
+            <strong>${score >= 75 ? "☀️" : "🌥️"} YOUR SOLAR BRIEF — ${tData.city.toUpperCase()}</strong>
             <span class="insight-badge" style="color:${badgeColor};border:1px solid ${badgeColor}55;">${scoreLabel(score).replace(" Day","").toUpperCase()}</span>
           </div>
           <div class="muted" style="margin:8px 0;">${weatherIcon(score)} • ${delta >= 0 ? "+" : ""}${delta}% vs yesterday</div>
@@ -668,9 +693,9 @@
     }
 
     function intensityBucket(score) {
-      if (score >= 75) return { label:"High", color:"#10b981" };
-      if (score >= 45) return { label:"Medium", color:"#facc15" };
-      return { label:"Low", color:"#ef4444" };
+      if (score >= 75) return { label:"Great", color:"#10b981" };
+      if (score >= 50) return { label:"Moderate", color:"#facc15" };
+      return { label:"Poor", color:"#ef4444" };
     }
 
     function initAtlasMap() {
@@ -694,7 +719,7 @@
         const bucket = intensityBucket(row.score || 0);
         const c = bucket.color;
         const m = L.circleMarker(coords, { radius: 8 + t * 10, color: c, fillColor: c, fillOpacity: 0.55, weight: 2 })
-          .bindTooltip(`<strong>${row.name}</strong><br/>Avg: ${row.avg_irradiance} W/m²<br/>Score: ${row.score}`, { direction: "top", sticky: true });
+          .bindTooltip(`<strong>${row.name}</strong><br/>${bucket.label} solar day<br/>Avg: ${row.avg_irradiance} W/m²<br/>Score: ${row.score}`, { direction: "top", sticky: true });
         m.on("click", () => {
           els.citySelect.value = row.id;
           updateMapPanelFromRow(row);
@@ -828,7 +853,7 @@
       const score = data.solar_quality_score;
       const avgConf = Math.round(daylight.reduce((s, h) => s + h.confidence_pct, 0) / daylight.length);
       const peak = data.peak_window;
-      const label = score > 70 ? "strong" : score > 45 ? "moderate" : "limited";
+      const label = score >= 75 ? "strong" : score >= 50 ? "moderate" : "limited";
       document.getElementById("aiMessageText").textContent =
         `Solar conditions are ${label} today. Optimization recommended.`;
       document.getElementById("aiMessageSub").textContent =
@@ -892,7 +917,7 @@
       const scoreEl = document.getElementById("solarQualityValue");
       const score = data.solar_quality_score;
       scoreEl.classList.remove("score-glow-good", "score-glow-mid", "score-glow-bad");
-      scoreEl.classList.add(score > 70 ? "score-glow-good" : score > 40 ? "score-glow-mid" : "score-glow-bad");
+      scoreEl.classList.add(score >= 75 ? "score-glow-good" : score >= 50 ? "score-glow-mid" : "score-glow-bad");
       scoreEl.style.color = scoreColor(score);
       if (currentMode === "simple") scoreEl.textContent = `${scoreLabel(score)} ☀️`;
       else animateCount(scoreEl, score);
@@ -1181,7 +1206,7 @@
         const sky = ["☀", "⛅", "🌥", "☀", "⛅", "🌥"];
         document.getElementById("compareBody").innerHTML = rows.map((r, i) => {
           const rank = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${r.rank}`;
-          const color = r.score > 80 ? "#10B981" : r.score > 50 ? "#F59E0B" : "#EF4444";
+          const color = r.score >= 75 ? "#10B981" : r.score >= 50 ? "#F59E0B" : "#EF4444";
           return `<tr>
             <td class="rank-badge">${rank}</td>
             <td>${r.flag} ${r.name}</td>
@@ -1222,7 +1247,7 @@
         const sky = ["â˜€", "â›…", "ðŸŒ¥", "â˜€", "â›…", "ðŸŒ¥"];
         document.getElementById("compareBody").innerHTML = rows.map((r, i) => {
           const rank = i === 0 ? "1" : i === 1 ? "2" : i === 2 ? "3" : `${r.rank}`;
-          const color = r.score > 80 ? "#10B981" : r.score > 50 ? "#F59E0B" : "#EF4444";
+          const color = r.score >= 75 ? "#10B981" : r.score >= 50 ? "#F59E0B" : "#EF4444";
           return `<tr>
             <td class="rank-badge">${rank}</td>
             <td>${r.flag} ${r.name}</td>
@@ -1319,3 +1344,4 @@
   </script>
 </body>
 </html>
+

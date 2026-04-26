@@ -39,6 +39,18 @@ CITY_MULTIPLIERS = {
 }
 CITY_PEAK_SUN = {city["id"]: city["peak_sun_hours"] for city in CITIES}
 CITY_ALIASES = {"delhi": "new_delhi"}
+CITY_MONTHLY_SOLAR_QUALITY = {
+    "riyadh": [76, 82, 90, 95, 98, 100, 98, 96, 92, 86, 80, 74],
+    "cairo": [72, 78, 86, 93, 97, 99, 98, 96, 91, 84, 77, 70],
+    "istanbul": [34, 42, 55, 70, 80, 88, 91, 88, 76, 61, 46, 36],
+    "new_delhi": [58, 68, 82, 94, 96, 72, 48, 45, 62, 82, 74, 60],
+    "dubai": [80, 86, 92, 96, 99, 100, 97, 94, 92, 88, 84, 79],
+    "london": [22, 30, 42, 56, 66, 72, 75, 70, 58, 43, 30, 22],
+    "sydney": [88, 84, 76, 64, 52, 42, 44, 54, 65, 76, 84, 89],
+    "tokyo": [52, 58, 66, 72, 68, 48, 54, 64, 50, 58, 60, 54],
+    "los_angeles": [66, 70, 76, 82, 88, 94, 98, 96, 90, 82, 72, 66],
+    "nairobi": [82, 78, 70, 58, 52, 56, 62, 70, 76, 68, 72, 80],
+}
 
 
 class ForecastRequest(BaseModel):
@@ -74,50 +86,68 @@ def fmt_date(d: date) -> str:
     return d.strftime("%Y-%m-%d")
 
 
+def seasonal_quality(city_id: str, on_date: date) -> int:
+    base = CITY_MONTHLY_SOLAR_QUALITY[city_id][on_date.month - 1]
+    rng = random.Random(stable_seed(city_id, fmt_date(on_date), "quality"))
+    daily_adjustment = rng.randint(-6, 6)
+    return max(15, min(100, base + daily_adjustment))
+
+
+def weather_label(score: int) -> str:
+    if score >= 75:
+        return "Sunny"
+    if score >= 50:
+        return "Partly cloudy"
+    return "Cloudy"
+
+
 def generate_forecast(city_id: str, on_date: date) -> dict:
     city_id = CITY_ALIASES.get(city_id, city_id)
     if city_id not in CITY_MAP:
         raise HTTPException(status_code=404, detail=f"Unknown city_id: {city_id}")
 
-    seed_value = stable_seed(city_id, fmt_date(on_date))
-    rng = random.Random(seed_value)
-
-    max_irradiance = rng.uniform(700, 950)
-    city_multiplier = CITY_MULTIPLIERS[city_id]
+    rng = random.Random(stable_seed(city_id, fmt_date(on_date), "hourly"))
+    solar_quality_score = seasonal_quality(city_id, on_date)
+    target_daily_kwh = CITY_PEAK_SUN[city_id] * (solar_quality_score / 100)
 
     hourly: List[dict] = []
     for hour in range(24):
         if 6 <= hour <= 18:
-            weather_factor = rng.uniform(0.75, 1.0)
+            weather_factor = rng.uniform(0.92, 1.08)
             irradiance = (
-                max_irradiance
-                * math.sin(math.pi * (hour - 6) / 12)
-                * city_multiplier
+                math.sin(math.pi * (hour - 6) / 12)
+                * 1000
+                * (solar_quality_score / 100)
+                * CITY_MULTIPLIERS[city_id]
                 * weather_factor
             )
-            irradiance = max(0.0, irradiance)
-            confidence_pct = int(round(rng.uniform(75, 95)))
+            confidence_pct = int(round(70 + solar_quality_score * 0.25 + rng.uniform(-3, 3)))
         else:
             irradiance = 0.0
             confidence_pct = 0
 
-        confidence_lower = irradiance * 0.88
-        confidence_upper = irradiance * 1.12
-
         hourly.append(
             {
                 "hour": hour,
+                "irradiance": max(0.0, irradiance),
+                "confidence_pct": max(0, min(96, confidence_pct)),
+            }
+        )
+
+    daylight_total = sum(item["irradiance"] for item in hourly) / 1000
+    scale = target_daily_kwh / daylight_total if daylight_total > 0 else 0
+    for item in hourly:
+        irradiance = item["irradiance"] * scale
+        item.update(
+            {
                 "irradiance": round(irradiance, 1),
-                "confidence_lower": round(confidence_lower, 1),
-                "confidence_upper": round(confidence_upper, 1),
-                "confidence_pct": confidence_pct,
+                "confidence_lower": round(irradiance * 0.88, 1),
+                "confidence_upper": round(irradiance * 1.12, 1),
             }
         )
 
     sum_irradiance = sum(item["irradiance"] for item in hourly)
     daily_total_kwh = round(sum_irradiance / 1000, 2)
-    expected_daily_kwh = CITY_PEAK_SUN[city_id]
-    solar_quality_score = max(0, min(100, round((daily_total_kwh / expected_daily_kwh) * 100)))
 
     daylight = [item for item in hourly if 6 <= item["hour"] <= 18]
     best_window_start = 10
@@ -135,6 +165,7 @@ def generate_forecast(city_id: str, on_date: date) -> dict:
         "solar_quality_score": solar_quality_score,
         "peak_window": {"start": best_window_start, "end": best_window_start + 3},
         "daily_total_kwh": daily_total_kwh,
+        "weather_label": weather_label(solar_quality_score),
         "model_used": "BiLSTM-Attention",
         "model_rmse": 45.5,
         "model_r2": 0.962,
